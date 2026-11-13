@@ -93,10 +93,12 @@ class SheetsSyncEngine @Inject constructor(
                 performSyncPass(spreadsheetId = spreadsheetId, accessToken = token)
             }
         } catch (apiError: SheetsApiException) {
+            val detail = apiError.message?.takeIf { it.isNotBlank() }
             val message = when (apiError.statusCode) {
-                401, 403 -> "Spreadsheet access denied. Check account permissions."
+                401 -> detail ?: "Authentication expired. Reconnect or refresh token."
+                403 -> detail ?: "Spreadsheet access denied. Check account permissions."
                 404 -> "Spreadsheet not found."
-                else -> apiError.message ?: "Sync failed"
+                else -> detail ?: "Sync failed"
             }
             syncPreferences.recordSyncError(message)
             SyncOutcome.Error(message = message, retryable = apiError.retryable)
