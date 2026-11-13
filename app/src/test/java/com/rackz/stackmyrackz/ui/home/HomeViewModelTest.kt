@@ -186,21 +186,65 @@ private class FakeTransactionRepository : TransactionRepository {
             syncStatus = SyncStatus.PENDING,
             remoteRevision = null
         )
-        saved.add(entity)
-        items.value = saved.toList()
+        daoInsert(entity)
         return entity
     }
 
-    override fun observeAllTransactions(): Flow<List<TransactionEntity>> = items
+    private fun daoInsert(entity: TransactionEntity) {
+        saved.add(entity)
+        items.value = saved.toList()
+    }
+
+    override suspend fun updateTransaction(
+        id: String,
+        type: TransactionType,
+        amountMinor: Long,
+        category: String,
+        remark: String?,
+        transactionDate: LocalDate
+    ): TransactionEntity? {
+        val index = saved.indexOfFirst { it.id == id }
+        if (index == -1) return null
+        val updated = saved[index].copy(
+            type = type,
+            amountMinor = amountMinor,
+            category = category,
+            remark = remark?.trim()?.takeIf { it.isNotEmpty() },
+            transactionDate = transactionDate,
+            updatedAt = Instant.now(),
+            syncStatus = SyncStatus.PENDING
+        )
+        saved[index] = updated
+        items.value = saved.toList()
+        return updated
+    }
+
+    override suspend fun softDeleteTransaction(id: String) {
+        val index = saved.indexOfFirst { it.id == id }
+        if (index == -1) return
+        saved[index] = saved[index].copy(isDeleted = true, updatedAt = Instant.now())
+        items.value = saved.toList()
+    }
+
+    override suspend fun restoreTransaction(id: String) {
+        val index = saved.indexOfFirst { it.id == id }
+        if (index == -1) return
+        saved[index] = saved[index].copy(isDeleted = false, updatedAt = Instant.now())
+        items.value = saved.toList()
+    }
+
+    override fun observeAllTransactions(): Flow<List<TransactionEntity>> =
+        items.map { list -> list.filter { !it.isDeleted } }
 
     override fun observeTransactionsForMonth(month: YearMonth): Flow<List<TransactionEntity>> =
         items.map { list ->
             list.filter {
-                !it.transactionDate.isBefore(month.atDay(1)) &&
+                !it.isDeleted &&
+                    !it.transactionDate.isBefore(month.atDay(1)) &&
                     !it.transactionDate.isAfter(month.atEndOfMonth())
             }
         }
 
     override fun observePendingSyncCount(): Flow<Int> =
-        items.map { list -> list.count { it.syncStatus == SyncStatus.PENDING } }
+        items.map { list -> list.count { !it.isDeleted && it.syncStatus == SyncStatus.PENDING } }
 }

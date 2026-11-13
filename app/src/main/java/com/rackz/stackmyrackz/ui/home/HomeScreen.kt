@@ -1,9 +1,7 @@
 package com.rackz.stackmyrackz.ui.home
 
 import android.view.HapticFeedbackConstants
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,7 +50,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -69,6 +66,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rackz.stackmyrackz.domain.CalcOperator
 import com.rackz.stackmyrackz.model.TransactionType
 import com.rackz.stackmyrackz.ui.components.MinusNumpad
+import com.rackz.stackmyrackz.ui.components.TransactionTypePill
 import com.rackz.stackmyrackz.ui.theme.RacksTheme
 import com.rackz.stackmyrackz.ui.theme.colorButton
 import com.rackz.stackmyrackz.ui.theme.googleSansFlex
@@ -455,58 +453,6 @@ fun HomeScreen(
             }
         ) {
             DatePicker(state = datePickerState)
-        }
-    }
-}
-
-@Composable
-private fun TransactionTypePill(
-    selectedType: TransactionType,
-    onTypeSelected: (TransactionType) -> Unit
-) {
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh
-    ) {
-        Row(
-            modifier = Modifier.padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TransactionType.entries.forEach { type ->
-                val selected = selectedType == type
-                val containerColor by animateColorAsState(
-                    targetValue = when {
-                        !selected -> androidx.compose.ui.graphics.Color.Transparent
-                        type == TransactionType.INCOME -> MaterialTheme.colorScheme.primaryContainer
-                        else -> MaterialTheme.colorScheme.secondaryContainer
-                    },
-                    label = "TypePillBg"
-                )
-                val contentColor by animateColorAsState(
-                    targetValue = when {
-                        !selected -> MaterialTheme.colorScheme.onSurfaceVariant
-                        type == TransactionType.INCOME -> MaterialTheme.colorScheme.onPrimaryContainer
-                        else -> MaterialTheme.colorScheme.onSecondaryContainer
-                    },
-                    label = "TypePillFg"
-                )
-
-                Box(
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(containerColor)
-                        .clickable { onTypeSelected(type) }
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = type.label,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = contentColor
-                    )
-                }
-            }
         }
     }
 }

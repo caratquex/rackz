@@ -22,7 +22,9 @@ object DatabaseModule {
             context,
             RacksDatabase::class.java,
             "racks.db"
-        ).build()
+        )
+            .addMigrations(RacksDatabase.MIGRATION_1_2)
+            .build()
 
     @Provides
     fun provideTransactionDao(database: RacksDatabase): TransactionDao =

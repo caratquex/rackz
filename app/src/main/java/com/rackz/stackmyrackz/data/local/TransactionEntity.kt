@@ -21,5 +21,6 @@ data class TransactionEntity(
     val createdAt: Instant,
     val updatedAt: Instant,
     val syncStatus: SyncStatus,
-    val remoteRevision: String? = null
+    val remoteRevision: String? = null,
+    val isDeleted: Boolean = false
 )

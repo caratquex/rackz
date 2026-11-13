@@ -17,16 +17,22 @@ interface TransactionDao {
     @Update
     suspend fun update(transaction: TransactionEntity)
 
-    @Query("SELECT * FROM transactions ORDER BY transactionDate DESC, createdAt DESC")
+    @Query("SELECT * FROM transactions WHERE id = :id LIMIT 1")
+    suspend fun getById(id: String): TransactionEntity?
+
+    @Query("SELECT * FROM transactions WHERE isDeleted = 0 ORDER BY transactionDate DESC, createdAt DESC")
     fun observeAll(): Flow<List<TransactionEntity>>
 
     @Query(
         "SELECT * FROM transactions " +
-            "WHERE transactionDate >= :startDate AND transactionDate <= :endDate " +
+            "WHERE isDeleted = 0 AND transactionDate >= :startDate AND transactionDate <= :endDate " +
             "ORDER BY transactionDate DESC, createdAt DESC"
     )
     fun observeByMonth(startDate: LocalDate, endDate: LocalDate): Flow<List<TransactionEntity>>
 
-    @Query("SELECT COUNT(*) FROM transactions WHERE syncStatus IN ('PENDING', 'FAILED', 'SYNCING')")
+    @Query(
+        "SELECT COUNT(*) FROM transactions " +
+            "WHERE isDeleted = 0 AND syncStatus IN ('PENDING', 'FAILED', 'SYNCING')"
+    )
     fun observePendingCount(): Flow<Int>
 }
