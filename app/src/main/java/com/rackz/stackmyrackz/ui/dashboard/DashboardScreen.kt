@@ -31,12 +31,12 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.CloudDone
+import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.CloudQueue
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -80,6 +80,7 @@ import com.rackz.stackmyrackz.domain.AmountInputEngine
 import com.rackz.stackmyrackz.model.DefaultCategories
 import com.rackz.stackmyrackz.model.SyncStatus
 import com.rackz.stackmyrackz.model.TransactionType
+import com.rackz.stackmyrackz.ui.components.SyncStatusIconButton
 import com.rackz.stackmyrackz.ui.components.TransactionTypePill
 import com.rackz.stackmyrackz.ui.theme.displaySmallCondensed
 import java.math.BigDecimal
@@ -166,6 +167,7 @@ fun DashboardScreen(
     onDeleteTransaction: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val view = LocalView.current
     val monthTitle = uiState.currentMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy"))
     val dateFormatter = remember { DateTimeFormatter.ofPattern("d MMM") }
 
@@ -185,7 +187,10 @@ fun DashboardScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                IconButton(onClick = onPreviousMonth) {
+                IconButton(onClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                    onPreviousMonth()
+                }) {
                     Icon(
                         imageVector = Icons.Rounded.ChevronLeft,
                         contentDescription = "Previous month",
@@ -201,11 +206,17 @@ fun DashboardScreen(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
                         .clip(CircleShape)
-                        .clickable(onClick = onResetToCurrentMonth)
+                        .clickable {
+                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                            onResetToCurrentMonth()
+                        }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
 
-                IconButton(onClick = onNextMonth) {
+                IconButton(onClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                    onNextMonth()
+                }) {
                     Icon(
                         imageVector = Icons.Rounded.ChevronRight,
                         contentDescription = "Next month",
@@ -218,29 +229,17 @@ fun DashboardScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                IconButton(onClick = onOpenSync) {
-                    if (uiState.pendingSyncCount > 0) {
-                        BadgedBox(
-                            badge = {
-                                Badge { Text(uiState.pendingSyncCount.toString()) }
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.CloudQueue,
-                                contentDescription = "Google Sheets sync",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    } else {
-                        Icon(
-                            imageVector = Icons.Rounded.CloudDone,
-                            contentDescription = "Google Sheets sync",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
+                SyncStatusIconButton(
+                    isSyncing = uiState.isSyncing,
+                    hasSyncError = uiState.hasSyncError,
+                    pendingSyncCount = uiState.pendingSyncCount,
+                    onClick = onOpenSync
+                )
 
-                IconButton(onClick = onOpenAppearance) {
+                IconButton(onClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                    onOpenAppearance()
+                }) {
                     Icon(
                         imageVector = Icons.Rounded.Palette,
                         contentDescription = "Appearance",
@@ -741,15 +740,22 @@ private fun TransactionItemCard(
 ) {
     val isExpense = tx.type == TransactionType.EXPENSE
     val prefix = if (isExpense) "-" else "+"
-    val badgeContainer = if (isExpense) {
-        MaterialTheme.colorScheme.secondaryContainer
-    } else {
-        MaterialTheme.colorScheme.primaryContainer
+    val isSyncProblem = tx.syncStatus == SyncStatus.FAILED || tx.syncStatus == SyncStatus.CONFLICT
+    val badgeContainer = when {
+        isSyncProblem -> MaterialTheme.colorScheme.errorContainer
+        isExpense -> MaterialTheme.colorScheme.secondaryContainer
+        else -> MaterialTheme.colorScheme.primaryContainer
     }
-    val badgeTint = if (isExpense) {
-        MaterialTheme.colorScheme.onSecondaryContainer
-    } else {
-        MaterialTheme.colorScheme.onPrimaryContainer
+    val badgeTint = when {
+        isSyncProblem -> MaterialTheme.colorScheme.onErrorContainer
+        isExpense -> MaterialTheme.colorScheme.onSecondaryContainer
+        else -> MaterialTheme.colorScheme.onPrimaryContainer
+    }
+    val statusIcon = when (tx.syncStatus) {
+        SyncStatus.SYNCED -> Icons.Rounded.CloudDone
+        SyncStatus.PENDING, SyncStatus.SYNCING -> Icons.Rounded.CloudQueue
+        SyncStatus.FAILED -> Icons.Rounded.CloudOff
+        SyncStatus.CONFLICT -> Icons.Rounded.WarningAmber
     }
     val amountColor = if (isExpense) {
         MaterialTheme.colorScheme.error
@@ -776,11 +782,7 @@ private fun TransactionItemCard(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = if (tx.syncStatus == SyncStatus.SYNCED) {
-                        Icons.Rounded.CloudDone
-                    } else {
-                        Icons.Rounded.CloudQueue
-                    },
+                    imageVector = statusIcon,
                     contentDescription = tx.syncStatus.name,
                     tint = badgeTint,
                     modifier = Modifier.size(20.dp)

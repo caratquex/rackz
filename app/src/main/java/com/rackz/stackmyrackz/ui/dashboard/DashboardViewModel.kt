@@ -57,6 +57,8 @@ data class DashboardUiState(
     val isHistorySheetOpen: Boolean = false,
     val editingTransaction: TransactionEntity? = null,
     val pendingSyncCount: Int = 0,
+    val isSyncing: Boolean = false,
+    val hasSyncError: Boolean = false,
     val expenseCategories: List<String> = DefaultCategories.expenseCategories,
     val incomeCategories: List<String> = DefaultCategories.incomeCategories
 ) {
@@ -176,6 +178,8 @@ class DashboardViewModel @Inject constructor(
             isHistorySheetOpen = controls.isHistorySheetOpen,
             editingTransaction = controls.editingTransaction,
             pendingSyncCount = pendingSyncCount,
+            isSyncing = prefs.isSyncing,
+            hasSyncError = !prefs.lastSyncError.isNullOrBlank(),
             expenseCategories = prefs.expenseCategories,
             incomeCategories = prefs.incomeCategories
         )

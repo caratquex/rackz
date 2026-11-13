@@ -182,20 +182,22 @@ private fun TextStyle.interpolateToEmphasized(
     animateSize: Boolean = true
 ): TextStyle {
     val clampedProgress = if (animateSize) progress.coerceIn(0f, 1f) else 0f
-    val animatedWeight = lerp(400f, 600f, clampedProgress)
-    val animatedWidth = lerp(100f, 125f, clampedProgress)
+    val rawWeight = lerp(400f, 600f, clampedProgress)
+    val rawWidth = lerp(100f, 125f, clampedProgress)
+    val quantizedWeight = ((rawWeight / 25f).toInt() * 25).coerceIn(400, 600)
+    val quantizedWidth = ((rawWidth / 5f).toInt() * 5f).coerceIn(100f, 125f)
     val animatedFontSize = lerp(fontSize.value, emphasizedStyle.fontSize.value, clampedProgress).sp
     val animatedLineHeight = lerp(lineHeight.value, emphasizedStyle.lineHeight.value, clampedProgress).sp
     val animatedLetterSpacing =
         lerp(letterSpacing.value, emphasizedStyle.letterSpacing.value, clampedProgress).sp
 
-    val animatedFontFamily = remember(animatedWeight, animatedWidth) {
+    val animatedFontFamily = remember(quantizedWeight, quantizedWidth) {
         FontFamily(
             Font(
                 resId = R.font.google_sans_flex,
                 variationSettings = FontVariation.Settings(
-                    FontVariation.weight(animatedWeight.toInt()),
-                    FontVariation.width(safeVariableWidth(animatedWidth)),
+                    FontVariation.weight(quantizedWeight),
+                    FontVariation.width(safeVariableWidth(quantizedWidth)),
                     roundness(100f)
                 )
             )

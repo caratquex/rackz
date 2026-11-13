@@ -35,6 +35,8 @@ data class HomeUiState(
     val isDatePickerOpen: Boolean = false,
     val isSaving: Boolean = false,
     val pendingSyncCount: Int = 0,
+    val isSyncing: Boolean = false,
+    val hasSyncError: Boolean = false,
     val expenseCategories: List<String> = DefaultCategories.expenseCategories,
     val incomeCategories: List<String> = DefaultCategories.incomeCategories
 ) {
@@ -79,6 +81,8 @@ class HomeViewModel @Inject constructor(
     ) { state, pendingCount, prefs ->
         state.copy(
             pendingSyncCount = pendingCount,
+            isSyncing = prefs.isSyncing,
+            hasSyncError = !prefs.lastSyncError.isNullOrBlank(),
             expenseCategories = prefs.expenseCategories,
             incomeCategories = prefs.incomeCategories
         )

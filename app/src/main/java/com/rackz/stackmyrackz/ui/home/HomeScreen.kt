@@ -1,9 +1,14 @@
 package com.rackz.stackmyrackz.ui.home
 
 import android.view.HapticFeedbackConstants
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -21,12 +26,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Calculate
 import androidx.compose.material.icons.rounded.CalendarToday
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.CloudDone
-import androidx.compose.material.icons.rounded.CloudQueue
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -51,8 +52,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -66,6 +65,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rackz.stackmyrackz.domain.CalcOperator
 import com.rackz.stackmyrackz.model.TransactionType
 import com.rackz.stackmyrackz.ui.components.MinusNumpad
+import com.rackz.stackmyrackz.ui.components.SyncStatusIconButton
 import com.rackz.stackmyrackz.ui.components.TransactionTypePill
 import com.rackz.stackmyrackz.ui.theme.RacksTheme
 import com.rackz.stackmyrackz.ui.theme.colorButton
@@ -210,38 +210,17 @@ fun HomeScreen(
                             )
                         }
 
-                        IconButton(
-                            onClick = onOpenSync,
-                            modifier = Modifier.semantics {
-                                contentDescription = if (uiState.pendingSyncCount > 0) {
-                                    "${uiState.pendingSyncCount} pending sync"
-                                } else {
-                                    "Google Sheets sync"
-                                }
-                            }
-                        ) {
-                            if (uiState.pendingSyncCount > 0) {
-                                BadgedBox(
-                                    badge = {
-                                        Badge { Text(uiState.pendingSyncCount.toString()) }
-                                    }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.CloudQueue,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Rounded.CloudDone,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
+                        SyncStatusIconButton(
+                            isSyncing = uiState.isSyncing,
+                            hasSyncError = uiState.hasSyncError,
+                            pendingSyncCount = uiState.pendingSyncCount,
+                            onClick = onOpenSync
+                        )
 
-                        IconButton(onClick = onOpenAppearance) {
+                        IconButton(onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                            onOpenAppearance()
+                        }) {
                             Icon(
                                 imageVector = Icons.Rounded.Palette,
                                 contentDescription = "Appearance",
@@ -258,15 +237,21 @@ fun HomeScreen(
                     horizontalAlignment = Alignment.End
                 ) {
                     val preview = uiState.amountInput.expressionPreview
-                    if (preview != null) {
-                        Text(
-                            text = preview,
-                            style = MaterialTheme.typography.titleLargeCondensed,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
+                    AnimatedVisibility(
+                        visible = preview != null,
+                        enter = fadeIn(tween(150)) + expandVertically(tween(150)),
+                        exit = fadeOut(tween(150)) + shrinkVertically(tween(150))
+                    ) {
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = preview.orEmpty(),
+                                style = MaterialTheme.typography.titleLargeCondensed,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                        }
                     }
 
                     val amountText = uiState.amountInput.formattedAmount
@@ -382,7 +367,10 @@ fun HomeScreen(
                         val selected = uiState.selectedCategory == category
                         FilterChip(
                             selected = selected,
-                            onClick = { onCategorySelected(category) },
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                onCategorySelected(category)
+                            },
                             shape = CircleShape,
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,

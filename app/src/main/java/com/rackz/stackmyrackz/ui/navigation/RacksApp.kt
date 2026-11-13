@@ -1,5 +1,8 @@
 package com.rackz.stackmyrackz.ui.navigation
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -126,6 +129,8 @@ fun RacksApp(
         NavHost(
             navController = navController,
             startDestination = RacksDestination.HOME.route,
+            enterTransition = { fadeIn(tween(180)) },
+            exitTransition = { fadeOut(tween(180)) },
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(RacksDestination.HOME.route) {
