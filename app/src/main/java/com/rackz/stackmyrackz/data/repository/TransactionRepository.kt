@@ -2,6 +2,8 @@ package com.rackz.stackmyrackz.data.repository
 
 import com.rackz.stackmyrackz.data.local.TransactionDao
 import com.rackz.stackmyrackz.data.local.TransactionEntity
+import com.rackz.stackmyrackz.data.sync.NoOpSyncScheduler
+import com.rackz.stackmyrackz.data.sync.SyncScheduler
 import com.rackz.stackmyrackz.model.SyncStatus
 import com.rackz.stackmyrackz.model.TransactionType
 import kotlinx.coroutines.flow.Flow
@@ -45,8 +47,11 @@ interface TransactionRepository {
 /** Room-backed offline-first implementation of [TransactionRepository]. */
 @Singleton
 class OfflineFirstTransactionRepository @Inject constructor(
-    private val dao: TransactionDao
+    private val dao: TransactionDao,
+    private val syncScheduler: SyncScheduler
 ) : TransactionRepository {
+
+    constructor(dao: TransactionDao) : this(dao, NoOpSyncScheduler)
 
     override suspend fun saveTransaction(
         type: TransactionType,
@@ -72,6 +77,7 @@ class OfflineFirstTransactionRepository @Inject constructor(
             isDeleted = false
         )
         dao.insert(entity)
+        syncScheduler.enqueueImmediateSync()
         return entity
     }
 
@@ -95,6 +101,7 @@ class OfflineFirstTransactionRepository @Inject constructor(
             syncStatus = SyncStatus.PENDING
         )
         dao.update(updated)
+        syncScheduler.enqueueImmediateSync()
         return updated
     }
 
@@ -108,6 +115,7 @@ class OfflineFirstTransactionRepository @Inject constructor(
                     syncStatus = SyncStatus.PENDING
                 )
             )
+            syncScheduler.enqueueImmediateSync()
         }
     }
 
@@ -121,6 +129,7 @@ class OfflineFirstTransactionRepository @Inject constructor(
                     syncStatus = SyncStatus.PENDING
                 )
             )
+            syncScheduler.enqueueImmediateSync()
         }
     }
 

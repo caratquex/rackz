@@ -32,7 +32,20 @@ interface TransactionDao {
 
     @Query(
         "SELECT COUNT(*) FROM transactions " +
-            "WHERE isDeleted = 0 AND syncStatus IN ('PENDING', 'FAILED', 'SYNCING')"
+            "WHERE syncStatus IN ('PENDING', 'FAILED', 'SYNCING')"
     )
     fun observePendingCount(): Flow<Int>
+
+    @Query(
+        "SELECT * FROM transactions " +
+            "WHERE syncStatus IN ('PENDING', 'FAILED', 'SYNCING') " +
+            "ORDER BY createdAt ASC"
+    )
+    suspend fun getUnsyncedTransactions(): List<TransactionEntity>
+
+    @Query("SELECT * FROM transactions")
+    suspend fun getAllTransactionsSnapshot(): List<TransactionEntity>
+
+    @Query("DELETE FROM transactions WHERE id = :id")
+    suspend fun hardDeleteById(id: String)
 }

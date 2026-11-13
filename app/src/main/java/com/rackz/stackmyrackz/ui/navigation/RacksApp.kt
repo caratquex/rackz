@@ -55,6 +55,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.rackz.stackmyrackz.ui.dashboard.DashboardRoute
 import com.rackz.stackmyrackz.ui.home.HomeRoute
+import com.rackz.stackmyrackz.ui.sync.SyncBottomSheetRoute
 import com.rackz.stackmyrackz.ui.theme.AppThemeMode
 import kotlinx.coroutines.launch
 
@@ -88,6 +89,7 @@ fun RacksApp(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     var isAppearanceOpen by remember { mutableStateOf(false) }
+    var isSyncOpen by remember { mutableStateOf(false) }
 
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
@@ -134,11 +136,13 @@ fun RacksApp(
                             snackbarHostState.showSnackbar(message)
                         }
                     },
+                    onOpenSync = { isSyncOpen = true },
                     onOpenAppearance = { isAppearanceOpen = true }
                 )
             }
             composable(RacksDestination.DASHBOARD.route) {
                 DashboardRoute(
+                    onOpenSync = { isSyncOpen = true },
                     onOpenAppearance = { isAppearanceOpen = true },
                     onShowSnackbar = { message, actionLabel, onAction ->
                         coroutineScope.launch {
@@ -169,6 +173,18 @@ fun RacksApp(
             onThemeModeSelected = onThemeModeSelected,
             onDynamicColorChanged = onDynamicColorChanged,
             onDismiss = { isAppearanceOpen = false }
+        )
+    }
+
+    if (isSyncOpen) {
+        SyncBottomSheetRoute(
+            onDismiss = { isSyncOpen = false },
+            onShowSnackbar = { message ->
+                coroutineScope.launch {
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    snackbarHostState.showSnackbar(message)
+                }
+            }
         )
     }
 }

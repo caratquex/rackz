@@ -3,7 +3,10 @@ package com.rackz.stackmyrackz.ui.dashboard
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rackz.stackmyrackz.data.local.TransactionEntity
+import com.rackz.stackmyrackz.data.preferences.InMemorySyncPreferencesRepository
+import com.rackz.stackmyrackz.data.preferences.SyncPreferencesRepository
 import com.rackz.stackmyrackz.data.repository.TransactionRepository
+import com.rackz.stackmyrackz.model.DefaultCategories
 import com.rackz.stackmyrackz.model.TransactionType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -52,7 +55,10 @@ data class DashboardUiState(
     val typeFilter: HistoryTypeFilter = HistoryTypeFilter.ALL,
     val selectedCategoryFilter: String? = null,
     val isHistorySheetOpen: Boolean = false,
-    val editingTransaction: TransactionEntity? = null
+    val editingTransaction: TransactionEntity? = null,
+    val pendingSyncCount: Int = 0,
+    val expenseCategories: List<String> = DefaultCategories.expenseCategories,
+    val incomeCategories: List<String> = DefaultCategories.incomeCategories
 ) {
     val netMinor: Long get() = incomeMinor - expenseMinor
 
@@ -78,8 +84,14 @@ private data class DashboardControlState(
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
-    private val repository: TransactionRepository
+    private val repository: TransactionRepository,
+    private val syncPreferences: SyncPreferencesRepository
 ) : ViewModel() {
+
+    constructor(repository: TransactionRepository) : this(
+        repository = repository,
+        syncPreferences = InMemorySyncPreferencesRepository()
+    )
 
     private val localZone = ZoneId.of("Asia/Kuala_Lumpur")
     private val initialMonth = YearMonth.now(localZone)
@@ -94,8 +106,10 @@ class DashboardViewModel @Inject constructor(
         _selectedMonth.flatMapLatest { month ->
             repository.observeTransactionsForMonth(month)
         },
-        _controls
-    ) { transactions, controls ->
+        _controls,
+        repository.observePendingSyncCount(),
+        syncPreferences.state
+    ) { transactions, controls, pendingSyncCount, prefs ->
         val sorted = transactions
             .filter { !it.isDeleted }
             .sortedWith(
@@ -160,7 +174,10 @@ class DashboardViewModel @Inject constructor(
             typeFilter = controls.typeFilter,
             selectedCategoryFilter = activeCategoryFilter,
             isHistorySheetOpen = controls.isHistorySheetOpen,
-            editingTransaction = controls.editingTransaction
+            editingTransaction = controls.editingTransaction,
+            pendingSyncCount = pendingSyncCount,
+            expenseCategories = prefs.expenseCategories,
+            incomeCategories = prefs.incomeCategories
         )
     }.stateIn(
         scope = viewModelScope,

@@ -80,6 +80,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun HomeRoute(
     onShowSnackbar: (String) -> Unit,
+    onOpenSync: () -> Unit = {},
     onOpenAppearance: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel()
@@ -116,6 +117,7 @@ fun HomeRoute(
         onDismissDatePicker = viewModel::onDismissDatePicker,
         onDateSelected = viewModel::onDateSelected,
         onSaveTransaction = viewModel::onSaveTransaction,
+        onOpenSync = onOpenSync,
         onOpenAppearance = onOpenAppearance,
         modifier = modifier
     )
@@ -141,6 +143,7 @@ fun HomeScreen(
     onDateSelected: (LocalDate) -> Unit,
     onSaveTransaction: () -> Unit,
     onClearPressed: () -> Unit = {},
+    onOpenSync: () -> Unit = {},
     onOpenAppearance: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -207,17 +210,15 @@ fun HomeScreen(
                             )
                         }
 
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .semantics {
-                                    contentDescription = if (uiState.pendingSyncCount > 0) {
-                                        "${uiState.pendingSyncCount} pending sync"
-                                    } else {
-                                        "Synced"
-                                    }
-                                },
-                            contentAlignment = Alignment.Center
+                        IconButton(
+                            onClick = onOpenSync,
+                            modifier = Modifier.semantics {
+                                contentDescription = if (uiState.pendingSyncCount > 0) {
+                                    "${uiState.pendingSyncCount} pending sync"
+                                } else {
+                                    "Google Sheets sync"
+                                }
+                            }
                         ) {
                             if (uiState.pendingSyncCount > 0) {
                                 BadgedBox(

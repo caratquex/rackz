@@ -2,6 +2,8 @@ package com.rackz.stackmyrackz.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rackz.stackmyrackz.data.preferences.InMemorySyncPreferencesRepository
+import com.rackz.stackmyrackz.data.preferences.SyncPreferencesRepository
 import com.rackz.stackmyrackz.data.repository.NetworkMonitor
 import com.rackz.stackmyrackz.data.repository.TransactionRepository
 import com.rackz.stackmyrackz.domain.AmountInputEngine
@@ -32,10 +34,15 @@ data class HomeUiState(
     val selectedDate: LocalDate = LocalDate.now(ZoneId.of("Asia/Kuala_Lumpur")),
     val isDatePickerOpen: Boolean = false,
     val isSaving: Boolean = false,
-    val pendingSyncCount: Int = 0
+    val pendingSyncCount: Int = 0,
+    val expenseCategories: List<String> = DefaultCategories.expenseCategories,
+    val incomeCategories: List<String> = DefaultCategories.incomeCategories
 ) {
     val availableCategories: List<String>
-        get() = DefaultCategories.forType(transactionType)
+        get() = when (transactionType) {
+            TransactionType.EXPENSE -> expenseCategories.ifEmpty { DefaultCategories.expenseCategories }
+            TransactionType.INCOME -> incomeCategories.ifEmpty { DefaultCategories.incomeCategories }
+        }
 
     val canSave: Boolean
         get() = amountInput.canContinue && selectedCategory != null && !isSaving
@@ -48,8 +55,14 @@ sealed interface HomeEvent {
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val repository: TransactionRepository,
-    private val networkMonitor: NetworkMonitor
+    private val networkMonitor: NetworkMonitor,
+    private val syncPreferences: SyncPreferencesRepository
 ) : ViewModel() {
+
+    constructor(
+        repository: TransactionRepository,
+        networkMonitor: NetworkMonitor
+    ) : this(repository, networkMonitor, InMemorySyncPreferencesRepository())
 
     private val localZone = ZoneId.of("Asia/Kuala_Lumpur")
     private val _state = MutableStateFlow(
@@ -61,9 +74,14 @@ class HomeViewModel @Inject constructor(
 
     val uiState: StateFlow<HomeUiState> = combine(
         _state,
-        repository.observePendingSyncCount()
-    ) { state, pendingCount ->
-        state.copy(pendingSyncCount = pendingCount)
+        repository.observePendingSyncCount(),
+        syncPreferences.state
+    ) { state, pendingCount, prefs ->
+        state.copy(
+            pendingSyncCount = pendingCount,
+            expenseCategories = prefs.expenseCategories,
+            incomeCategories = prefs.incomeCategories
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -78,9 +96,14 @@ class HomeViewModel @Inject constructor(
             if (current.transactionType == type) {
                 current
             } else {
+                val categories = when (type) {
+                    TransactionType.EXPENSE -> uiState.value.expenseCategories
+                    TransactionType.INCOME -> uiState.value.incomeCategories
+                }
                 current.copy(
                     transactionType = type,
-                    selectedCategory = DefaultCategories.forType(type).firstOrNull()
+                    selectedCategory = categories.firstOrNull()
+                        ?: DefaultCategories.forType(type).firstOrNull()
                 )
             }
         }

@@ -35,6 +35,8 @@ import androidx.compose.material.icons.rounded.CloudQueue
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -91,6 +93,7 @@ import kotlin.math.abs
 
 @Composable
 fun DashboardRoute(
+    onOpenSync: () -> Unit = {},
     onOpenAppearance: () -> Unit = {},
     onShowSnackbar: (message: String, actionLabel: String?, onAction: (() -> Unit)?) -> Unit = { _, _, _ -> },
     modifier: Modifier = Modifier,
@@ -118,6 +121,7 @@ fun DashboardRoute(
 
     DashboardScreen(
         uiState = uiState,
+        onOpenSync = onOpenSync,
         onOpenAppearance = onOpenAppearance,
         onPreviousMonth = viewModel::onPreviousMonth,
         onNextMonth = viewModel::onNextMonth,
@@ -139,6 +143,7 @@ fun DashboardRoute(
 @Composable
 fun DashboardScreen(
     uiState: DashboardUiState,
+    onOpenSync: () -> Unit = {},
     onOpenAppearance: () -> Unit = {},
     onPreviousMonth: () -> Unit = {},
     onNextMonth: () -> Unit = {},
@@ -209,12 +214,39 @@ fun DashboardScreen(
                 }
             }
 
-            IconButton(onClick = onOpenAppearance) {
-                Icon(
-                    imageVector = Icons.Rounded.Palette,
-                    contentDescription = "Appearance",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                IconButton(onClick = onOpenSync) {
+                    if (uiState.pendingSyncCount > 0) {
+                        BadgedBox(
+                            badge = {
+                                Badge { Text(uiState.pendingSyncCount.toString()) }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.CloudQueue,
+                                contentDescription = "Google Sheets sync",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        Icon(
+                            imageVector = Icons.Rounded.CloudDone,
+                            contentDescription = "Google Sheets sync",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                IconButton(onClick = onOpenAppearance) {
+                    Icon(
+                        imageVector = Icons.Rounded.Palette,
+                        contentDescription = "Appearance",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
 
@@ -377,6 +409,8 @@ fun DashboardScreen(
     if (editingTx != null) {
         EditTransactionModalSheet(
             transaction = editingTx,
+            expenseCategories = uiState.expenseCategories,
+            incomeCategories = uiState.incomeCategories,
             onDismiss = onDismissEditSheet,
             onSave = { type, amountMinor, category, remark, date ->
                 onUpdateTransaction(editingTx.id, type, amountMinor, category, remark, date)
@@ -797,6 +831,8 @@ private fun TransactionItemCard(
 @Composable
 private fun EditTransactionModalSheet(
     transaction: TransactionEntity,
+    expenseCategories: List<String>,
+    incomeCategories: List<String>,
     onDismiss: () -> Unit,
     onSave: (
         type: TransactionType,
@@ -821,9 +857,12 @@ private fun EditTransactionModalSheet(
     var date by remember(transaction.id) { mutableStateOf(transaction.transactionDate) }
     var isDatePickerOpen by remember { mutableStateOf(false) }
 
-    val availableCategories = remember(type, category) {
-        val defaults = DefaultCategories.forType(type)
-        if (category in defaults) defaults else listOf(category) + defaults
+    val availableCategories = remember(type, category, expenseCategories, incomeCategories) {
+        val base = when (type) {
+            TransactionType.EXPENSE -> expenseCategories.ifEmpty { DefaultCategories.expenseCategories }
+            TransactionType.INCOME -> incomeCategories.ifEmpty { DefaultCategories.incomeCategories }
+        }
+        if (category in base) base else listOf(category) + base
     }
 
     val parsedMinor = remember(amountText) {
@@ -854,7 +893,14 @@ private fun EditTransactionModalSheet(
                     onTypeSelected = { nextType ->
                         if (type != nextType) {
                             type = nextType
-                            val nextCategories = DefaultCategories.forType(nextType)
+                            val nextCategories = when (nextType) {
+                                TransactionType.EXPENSE -> expenseCategories.ifEmpty {
+                                    DefaultCategories.expenseCategories
+                                }
+                                TransactionType.INCOME -> incomeCategories.ifEmpty {
+                                    DefaultCategories.incomeCategories
+                                }
+                            }
                             if (category !in nextCategories) {
                                 category = nextCategories.first()
                             }
