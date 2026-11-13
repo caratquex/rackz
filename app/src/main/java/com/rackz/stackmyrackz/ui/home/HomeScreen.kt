@@ -1,26 +1,31 @@
 package com.rackz.stackmyrackz.ui.home
 
 import android.view.HapticFeedbackConstants
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Backspace
-import androidx.compose.material.icons.outlined.Calculate
-import androidx.compose.material.icons.outlined.CalendarToday
-import androidx.compose.material.icons.outlined.CloudDone
-import androidx.compose.material.icons.outlined.CloudQueue
+import androidx.compose.material.icons.rounded.Calculate
+import androidx.compose.material.icons.rounded.CalendarToday
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.CloudDone
+import androidx.compose.material.icons.rounded.CloudQueue
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -28,39 +33,46 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconToggleButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rackz.stackmyrackz.domain.CalcOperator
 import com.rackz.stackmyrackz.model.TransactionType
+import com.rackz.stackmyrackz.ui.components.MinusNumpad
 import com.rackz.stackmyrackz.ui.theme.RacksTheme
+import com.rackz.stackmyrackz.ui.theme.colorButton
+import com.rackz.stackmyrackz.ui.theme.googleSansFlex
+import com.rackz.stackmyrackz.ui.theme.titleLargeCondensed
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -70,6 +82,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun HomeRoute(
     onShowSnackbar: (String) -> Unit,
+    onOpenAppearance: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
@@ -93,6 +106,7 @@ fun HomeRoute(
         onDigitPressed = viewModel::onDigitPressed,
         onDecimalPressed = viewModel::onDecimalPressed,
         onBackspacePressed = viewModel::onBackspacePressed,
+        onClearPressed = viewModel::onClearPressed,
         onOperatorPressed = viewModel::onOperatorPressed,
         onEqualsPressed = viewModel::onEqualsPressed,
         onToggleCalculatorMode = viewModel::onToggleCalculatorMode,
@@ -104,6 +118,7 @@ fun HomeRoute(
         onDismissDatePicker = viewModel::onDismissDatePicker,
         onDateSelected = viewModel::onDateSelected,
         onSaveTransaction = viewModel::onSaveTransaction,
+        onOpenAppearance = onOpenAppearance,
         modifier = modifier
     )
 }
@@ -127,175 +142,205 @@ fun HomeScreen(
     onDismissDatePicker: () -> Unit,
     onDateSelected: (LocalDate) -> Unit,
     onSaveTransaction: () -> Unit,
+    onClearPressed: () -> Unit = {},
+    onOpenAppearance: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val view = LocalView.current
+    val hasOperators = remember(uiState.amountInput.rawExpression) {
+        uiState.amountInput.rawExpression.any { it in "+-×÷" }
+    }
 
     Column(
-        modifier = modifier.fillMaxSize()
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface)
     ) {
-        TopAppBar(
-            title = { Text("Racks") },
-            actions = {
-                IconButton(
-                    onClick = {},
-                    modifier = Modifier.semantics {
-                        contentDescription = if (uiState.pendingSyncCount > 0) {
-                            "${uiState.pendingSyncCount} pending sync"
-                        } else {
-                            "Synced"
-                        }
-                    }
-                ) {
-                    if (uiState.pendingSyncCount > 0) {
-                        BadgedBox(
-                            badge = {
-                                Badge { Text(uiState.pendingSyncCount.toString()) }
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.CloudQueue,
-                                contentDescription = null
-                            )
-                        }
-                    } else {
-                        Icon(
-                            imageVector = Icons.Outlined.CloudDone,
-                            contentDescription = null
-                        )
-                    }
-                }
-            }
-        )
-
-        Column(
+        Surface(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .weight(1f)
+                .fillMaxWidth(),
+            color = colorButton,
+            shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
         ) {
-            SingleChoiceSegmentedButtonRow(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                TransactionType.entries.forEachIndexed { index, type ->
-                    SegmentedButton(
-                        selected = uiState.transactionType == type,
-                        onClick = { onTypeSelected(type) },
-                        shape = SegmentedButtonDefaults.itemShape(
-                            index = index,
-                            count = TransactionType.entries.size
-                        )
-                    ) {
-                        Text(type.label)
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.weight(1f))
-
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                horizontalAlignment = Alignment.End
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                val preview = uiState.amountInput.expressionPreview
-                if (preview != null) {
-                    Text(
-                        text = preview,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                }
-
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    IconToggleButton(
-                        checked = uiState.amountInput.isCalculatorMode,
-                        onCheckedChange = {
+                    TransactionTypePill(
+                        selectedType = uiState.transactionType,
+                        onTypeSelected = { type ->
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            onToggleCalculatorMode()
+                            onTypeSelected(type)
                         }
+                    )
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Calculate,
-                            contentDescription = "Calculator mode"
+                        val isCalc = uiState.amountInput.isCalculatorMode
+                        IconButton(
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                onToggleCalculatorMode()
+                            },
+                            colors = if (isCalc) {
+                                IconButtonDefaults.iconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            } else {
+                                IconButtonDefaults.iconButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Calculate,
+                                contentDescription = "Calculator mode"
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .semantics {
+                                    contentDescription = if (uiState.pendingSyncCount > 0) {
+                                        "${uiState.pendingSyncCount} pending sync"
+                                    } else {
+                                        "Synced"
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (uiState.pendingSyncCount > 0) {
+                                BadgedBox(
+                                    badge = {
+                                        Badge { Text(uiState.pendingSyncCount.toString()) }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.CloudQueue,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Rounded.CloudDone,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+
+                        IconButton(onClick = onOpenAppearance) {
+                            Icon(
+                                imageVector = Icons.Rounded.Palette,
+                                contentDescription = "Appearance",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 20.dp),
+                    horizontalAlignment = Alignment.End
+                ) {
+                    val preview = uiState.amountInput.expressionPreview
+                    if (preview != null) {
+                        Text(
+                            text = preview,
+                            style = MaterialTheme.typography.titleLargeCondensed,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
+                        Spacer(modifier = Modifier.height(6.dp))
                     }
 
                     val amountText = uiState.amountInput.formattedAmount
-                    val amountStyle = when {
-                        amountText.length <= 9 -> MaterialTheme.typography.displayLarge
-                        amountText.length <= 12 -> MaterialTheme.typography.displayMedium
-                        amountText.length <= 15 -> MaterialTheme.typography.displaySmall
-                        else -> MaterialTheme.typography.headlineLarge
+                    val numericPart = amountText.removePrefix("RM ").trimStart()
+                    val baseSize = when {
+                        numericPart.length <= 7 -> 72.sp
+                        numericPart.length <= 10 -> 56.sp
+                        numericPart.length <= 13 -> 44.sp
+                        else -> 34.sp
+                    }
+                    val prefixColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    val amountFont = remember { googleSansFlex(weight = 300, width = 95f, isRounded = true) }
+
+                    val annotatedAmount = remember(numericPart, baseSize, prefixColor) {
+                        buildAnnotatedString {
+                            pushStyle(
+                                SpanStyle(
+                                    fontSize = baseSize * 0.42f,
+                                    fontWeight = FontWeight.Bold,
+                                    color = prefixColor,
+                                    baselineShift = BaselineShift(0.18f)
+                                )
+                            )
+                            append("RM ")
+                            pop()
+                            pushStyle(
+                                SpanStyle(
+                                    fontFamily = amountFont,
+                                    fontSize = baseSize,
+                                    fontWeight = FontWeight.Light
+                                )
+                            )
+                            append(numericPart)
+                            pop()
+                        }
                     }
 
                     Text(
-                        text = amountText,
-                        style = amountStyle,
+                        text = annotatedAmount,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
             }
-
-            Spacer(modifier = Modifier.weight(0.5f))
-
-            KeypadGrid(
-                isCalculatorMode = uiState.amountInput.isCalculatorMode,
-                onDigitPressed = { digit ->
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                    onDigitPressed(digit)
-                },
-                onDecimalPressed = {
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                    onDecimalPressed()
-                },
-                onBackspacePressed = {
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                    onBackspacePressed()
-                },
-                onOperatorPressed = { operator ->
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                    onOperatorPressed(operator)
-                },
-                onEqualsPressed = {
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                    onEqualsPressed()
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(280.dp)
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Button(
-                onClick = onOpenSheet,
-                enabled = uiState.amountInput.canContinue,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-            ) {
-                Text("Continue")
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
         }
+
+        MinusNumpad(
+            isCalculatorMode = uiState.amountInput.isCalculatorMode,
+            hasOperators = hasOperators,
+            canApply = uiState.amountInput.canContinue,
+            onDigitPressed = onDigitPressed,
+            onDecimalPressed = onDecimalPressed,
+            onBackspacePressed = onBackspacePressed,
+            onClearPressed = onClearPressed,
+            onOperatorPressed = onOperatorPressed,
+            onEqualsPressed = onEqualsPressed,
+            onApplyPressed = onOpenSheet,
+            onToggleCalculatorMode = onToggleCalculatorMode,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(340.dp)
+                .padding(top = 8.dp, bottom = 8.dp)
+        )
     }
 
     if (uiState.isSheetOpen) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
             onDismissRequest = onDismissSheet,
-            sheetState = sheetState
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
         ) {
             Column(
                 modifier = Modifier
@@ -311,16 +356,19 @@ fun HomeScreen(
                 ) {
                     Text(
                         text = uiState.amountInput.formattedAmount,
-                        style = MaterialTheme.typography.headlineMedium
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
 
                     AssistChip(
                         onClick = onOpenDatePicker,
+                        shape = CircleShape,
                         label = { Text(formatChipDate(uiState.selectedDate)) },
                         leadingIcon = {
                             Icon(
-                                imageVector = Icons.Outlined.CalendarToday,
-                                contentDescription = null
+                                imageVector = Icons.Rounded.CalendarToday,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     )
@@ -329,12 +377,18 @@ fun HomeScreen(
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     uiState.availableCategories.forEach { category ->
+                        val selected = uiState.selectedCategory == category
                         FilterChip(
-                            selected = uiState.selectedCategory == category,
+                            selected = selected,
                             onClick = { onCategorySelected(category) },
+                            shape = CircleShape,
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
                             label = { Text(category) }
                         )
                     }
@@ -343,19 +397,27 @@ fun HomeScreen(
                 OutlinedTextField(
                     value = uiState.remark,
                     onValueChange = onRemarkChanged,
-                    label = { Text("Remark") },
+                    placeholder = { Text("Remark") },
                     singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 Button(
                     onClick = onSaveTransaction,
                     enabled = uiState.canSave,
+                    shape = CircleShape,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp)
+                        .height(56.dp)
                 ) {
-                    Text("Save")
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Save", style = MaterialTheme.typography.titleMedium)
                 }
             }
         }
@@ -398,141 +460,54 @@ fun HomeScreen(
 }
 
 @Composable
-private fun KeypadGrid(
-    isCalculatorMode: Boolean,
-    onDigitPressed: (Char) -> Unit,
-    onDecimalPressed: () -> Unit,
-    onBackspacePressed: () -> Unit,
-    onOperatorPressed: (CalcOperator) -> Unit,
-    onEqualsPressed: () -> Unit,
-    modifier: Modifier = Modifier
+private fun TransactionTypePill(
+    selectedType: TransactionType,
+    onTypeSelected: (TransactionType) -> Unit
 ) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
     ) {
-        Column(
-            modifier = Modifier
-                .weight(3f)
-                .fillMaxHeight(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        Row(
+            modifier = Modifier.padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            val rows = listOf(
-                listOf('1', '2', '3'),
-                listOf('4', '5', '6'),
-                listOf('7', '8', '9')
-            )
-            rows.forEach { rowDigits ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    rowDigits.forEach { digit ->
-                        KeypadDigitButton(
-                            label = digit.toString(),
-                            onClick = { onDigitPressed(digit) },
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                        )
-                    }
-                }
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                KeypadDigitButton(
-                    label = ".",
-                    onClick = onDecimalPressed,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
+            TransactionType.entries.forEach { type ->
+                val selected = selectedType == type
+                val containerColor by animateColorAsState(
+                    targetValue = when {
+                        !selected -> androidx.compose.ui.graphics.Color.Transparent
+                        type == TransactionType.INCOME -> MaterialTheme.colorScheme.primaryContainer
+                        else -> MaterialTheme.colorScheme.secondaryContainer
+                    },
+                    label = "TypePillBg"
                 )
-                KeypadDigitButton(
-                    label = "0",
-                    onClick = { onDigitPressed('0') },
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
+                val contentColor by animateColorAsState(
+                    targetValue = when {
+                        !selected -> MaterialTheme.colorScheme.onSurfaceVariant
+                        type == TransactionType.INCOME -> MaterialTheme.colorScheme.onPrimaryContainer
+                        else -> MaterialTheme.colorScheme.onSecondaryContainer
+                    },
+                    label = "TypePillFg"
                 )
-                FilledTonalButton(
-                    onClick = onBackspacePressed,
-                    contentPadding = PaddingValues(0.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.Backspace,
-                        contentDescription = "Backspace"
-                    )
-                }
-            }
-        }
 
-        AnimatedVisibility(visible = isCalculatorMode) {
-            Column(
-                modifier = Modifier
-                    .width(72.dp)
-                    .fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                listOf(
-                    CalcOperator.DIVIDE,
-                    CalcOperator.MULTIPLY,
-                    CalcOperator.SUBTRACT,
-                    CalcOperator.ADD
-                ).forEach { op ->
-                    OutlinedButton(
-                        onClick = { onOperatorPressed(op) },
-                        contentPadding = PaddingValues(0.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                    ) {
-                        Text(
-                            text = op.symbol,
-                            style = MaterialTheme.typography.titleLarge
-                        )
-                    }
-                }
-                Button(
-                    onClick = onEqualsPressed,
-                    contentPadding = PaddingValues(0.dp),
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
+                        .clip(CircleShape)
+                        .background(containerColor)
+                        .clickable { onTypeSelected(type) }
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "=",
-                        style = MaterialTheme.typography.titleLarge
+                        text = type.label,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = contentColor
                     )
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun KeypadDigitButton(
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    FilledTonalButton(
-        onClick = onClick,
-        contentPadding = PaddingValues(0.dp),
-        modifier = modifier
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.headlineSmall
-        )
     }
 }
 

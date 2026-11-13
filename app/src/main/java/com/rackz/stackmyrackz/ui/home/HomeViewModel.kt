@@ -98,6 +98,17 @@ class HomeViewModel @Inject constructor(
         _state.update { it.copy(amountInput = AmountInputEngine.onBackspace(it.amountInput)) }
     }
 
+    fun onClearPressed() {
+        _state.update {
+            it.copy(
+                amountInput = AmountInputEngine.reset(
+                    keepCalculatorMode = true,
+                    currentMode = it.amountInput.isCalculatorMode
+                )
+            )
+        }
+    }
+
     fun onOperatorPressed(operator: CalcOperator) {
         _state.update {
             it.copy(amountInput = AmountInputEngine.onOperator(it.amountInput, operator))
