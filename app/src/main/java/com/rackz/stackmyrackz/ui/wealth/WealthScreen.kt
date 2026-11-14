@@ -183,7 +183,7 @@ fun WealthScreen(
     modifier: Modifier = Modifier
 ) {
     val view = LocalView.current
-    val monthFormatter = remember { DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH) }
+    val monthFormatter = remember { DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH) }
     val monthTitle = uiState.currentMonth.format(monthFormatter)
 
     Column(
@@ -199,6 +199,7 @@ fun WealthScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
+                modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
@@ -227,12 +228,13 @@ fun WealthScreen(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
+                        .weight(1f, fill = false)
                         .clip(CircleShape)
                         .clickable {
                             view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                             onResetToCurrentMonth()
                         }
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                        .padding(horizontal = 6.dp, vertical = 4.dp)
                 )
 
                 Surface(
@@ -258,10 +260,13 @@ fun WealthScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                IconButton(onClick = {
-                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                    onOpenReminderSheet()
-                }) {
+                IconButton(
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        onOpenReminderSheet()
+                    },
+                    modifier = Modifier.size(36.dp)
+                ) {
                     Icon(
                         imageVector = if (uiState.reminderEnabled) {
                             Icons.Rounded.NotificationsActive
@@ -281,18 +286,44 @@ fun WealthScreen(
                     isSyncing = uiState.isSyncing,
                     hasSyncError = uiState.hasSyncError,
                     pendingSyncCount = uiState.pendingSyncCount,
-                    onClick = onOpenSync
+                    onClick = onOpenSync,
+                    modifier = Modifier.size(36.dp)
                 )
 
-                IconButton(onClick = {
-                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                    onOpenAppearance()
-                }) {
+                IconButton(
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        onOpenAppearance()
+                    },
+                    modifier = Modifier.size(36.dp)
+                ) {
                     Icon(
                         imageVector = Icons.Rounded.Palette,
                         contentDescription = "Appearance",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+
+                Spacer(modifier = Modifier.width(4.dp))
+
+                Surface(
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        onOpenEditSheet(uiState.currentMonth)
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    shadowElevation = 2.dp,
+                    modifier = Modifier.size(38.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Rounded.Edit,
+                            contentDescription = if (uiState.hasCurrentMonthEntry) "Update Month" else "Log Month",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
         }
@@ -305,8 +336,6 @@ fun WealthScreen(
             item {
                 HeroWealthCard(
                     cumulativeTotalMinor = uiState.cumulativeTotalMinor,
-                    cumulativeSavingsMinor = uiState.cumulativeSavingsMinor,
-                    cumulativeInvestmentMinor = uiState.cumulativeInvestmentMinor,
                     combinedGoalPercent = uiState.combinedGoalPercent
                 )
             }
@@ -328,7 +357,6 @@ fun WealthScreen(
                         accentContentColor = MaterialTheme.colorScheme.onSecondary,
                         cardShape = ExpressiveShapes.splitPairCardShape(isStart = true),
                         badgeShape = ExpressiveShapes.Sunny,
-                        icon = Icons.Rounded.Savings,
                         onClick = { onOpenEditSheet(uiState.currentMonth) },
                         modifier = Modifier.weight(1f)
                     )
@@ -343,8 +371,7 @@ fun WealthScreen(
                         accentColor = MaterialTheme.colorScheme.tertiary,
                         accentContentColor = MaterialTheme.colorScheme.onTertiary,
                         cardShape = ExpressiveShapes.splitPairCardShape(isStart = false),
-                        badgeShape = ExpressiveShapes.Cookie9Sided,
-                        icon = Icons.Rounded.ShowChart,
+                        badgeShape = ExpressiveShapes.Sunny,
                         onClick = { onOpenEditSheet(uiState.currentMonth) },
                         modifier = Modifier.weight(1f)
                     )
@@ -361,45 +388,12 @@ fun WealthScreen(
             }
 
             item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Monthly Snapshots",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-
-                    Surface(
-                        onClick = {
-                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                            onOpenEditSheet(uiState.currentMonth)
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Edit,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = if (uiState.hasCurrentMonthEntry) "Update Month" else "Log Month",
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                        }
-                    }
-                }
+                Text(
+                    text = "History",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
             }
 
             item {
@@ -454,8 +448,6 @@ fun WealthScreen(
 @Composable
 private fun HeroWealthCard(
     cumulativeTotalMinor: Long,
-    cumulativeSavingsMinor: Long,
-    cumulativeInvestmentMinor: Long,
     combinedGoalPercent: Int?
 ) {
     val numeric = AmountInputEngine.formatMinorCurrency(cumulativeTotalMinor, prefix = "")
@@ -496,114 +488,47 @@ private fun HeroWealthCard(
                     )
             )
 
-            Column(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp, vertical = 22.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Total Wealth",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = prefixColor
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = totalText,
-                            style = baseStyle,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Total Wealth",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = prefixColor
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = totalText,
+                        style = baseStyle,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
 
-                    if (combinedGoalPercent != null) {
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            shape = ExpressiveShapes.Sunny,
-                            modifier = Modifier.size(58.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = "$combinedGoalPercent%",
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        fontWeight = FontWeight.Bold
-                                    ),
-                                    maxLines = 1
-                                )
-                            }
+                if (combinedGoalPercent != null) {
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        shape = ExpressiveShapes.Sunny,
+                        modifier = Modifier.size(58.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "$combinedGoalPercent%",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                maxLines = 1
+                            )
                         }
                     }
                 }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    WealthHeroBreakdownPill(
-                        label = "Saved",
-                        amountMinor = cumulativeSavingsMinor,
-                        swatchShape = ExpressiveShapes.Sunny,
-                        swatchColor = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.weight(1f)
-                    )
-                    WealthHeroBreakdownPill(
-                        label = "Invested",
-                        amountMinor = cumulativeInvestmentMinor,
-                        swatchShape = ExpressiveShapes.Cookie9Sided,
-                        swatchColor = MaterialTheme.colorScheme.tertiaryContainer,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun WealthHeroBreakdownPill(
-    label: String,
-    amountMinor: Long,
-    swatchShape: Shape,
-    swatchColor: Color,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.1f),
-        contentColor = MaterialTheme.colorScheme.surface
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .background(swatchColor, swatchShape)
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
-                    maxLines = 1
-                )
-                Text(
-                    text = AmountInputEngine.formatMinorCurrency(amountMinor),
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
             }
         }
     }
@@ -622,7 +547,6 @@ private fun WealthGoalCard(
     accentContentColor: Color,
     cardShape: Shape,
     badgeShape: Shape,
-    icon: ImageVector,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -660,15 +584,15 @@ private fun WealthGoalCard(
                 )
                 Box(
                     modifier = Modifier
-                        .size(34.dp)
+                        .size(44.dp)
                         .background(accentColor, badgeShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = accentContentColor,
-                        modifier = Modifier.size(17.dp)
+                    Text(
+                        text = "$percent%",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = accentContentColor,
+                        maxLines = 1
                     )
                 }
             }
@@ -689,39 +613,20 @@ private fun WealthGoalCard(
                 )
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(10.dp)
+                    .clip(CircleShape)
+                    .background(contentColor.copy(alpha = 0.14f))
+            ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(10.dp)
+                        .fillMaxHeight()
+                        .fillMaxWidth(animatedProgress.coerceIn(0f, 1f))
                         .clip(CircleShape)
-                        .background(contentColor.copy(alpha = 0.14f))
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(animatedProgress.coerceIn(0f, 1f))
-                            .clip(CircleShape)
-                            .background(accentColor)
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "$percent% of goal",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = contentColor.copy(alpha = 0.85f)
-                    )
-                    Text(
-                        text = "Edit",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = contentColor
-                    )
-                }
+                        .background(accentColor)
+                )
             }
         }
     }
@@ -1087,24 +992,14 @@ private fun WealthSnapshotRow(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = snapshot.month.format(formatter),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = "+${AmountInputEngine.formatMinorCurrency(snapshot.savingsSavedMinor)} saved · +${
-                        AmountInputEngine.formatMinorCurrency(snapshot.investmentSavedMinor)
-                    } inv",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+            Text(
+                text = snapshot.month.format(formatter),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
 
             Spacer(modifier = Modifier.width(12.dp))
 
