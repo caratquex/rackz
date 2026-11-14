@@ -2,6 +2,9 @@ package com.rackz.stackmyrackz.ui.dashboard
 
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,12 +19,14 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -34,7 +39,10 @@ import androidx.compose.material.icons.rounded.CloudDone
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.CloudQueue
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.NorthEast
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.ReceiptLong
+import androidx.compose.material.icons.rounded.SouthWest
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -65,6 +73,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -82,6 +92,7 @@ import com.rackz.stackmyrackz.model.SyncStatus
 import com.rackz.stackmyrackz.model.TransactionType
 import com.rackz.stackmyrackz.ui.components.SyncStatusIconButton
 import com.rackz.stackmyrackz.ui.components.TransactionTypePill
+import com.rackz.stackmyrackz.ui.theme.ExpressiveShapes
 import com.rackz.stackmyrackz.ui.theme.displaySmallCondensed
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -185,17 +196,24 @@ fun DashboardScreen(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                IconButton(onClick = {
-                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                    onPreviousMonth()
-                }) {
-                    Icon(
-                        imageVector = Icons.Rounded.ChevronLeft,
-                        contentDescription = "Previous month",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Surface(
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        onPreviousMonth()
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Rounded.ChevronLeft,
+                            contentDescription = "Previous month",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
                 Text(
@@ -210,18 +228,25 @@ fun DashboardScreen(
                             view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                             onResetToCurrentMonth()
                         }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
                 )
 
-                IconButton(onClick = {
-                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                    onNextMonth()
-                }) {
-                    Icon(
-                        imageVector = Icons.Rounded.ChevronRight,
-                        contentDescription = "Next month",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Surface(
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        onNextMonth()
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Rounded.ChevronRight,
+                            contentDescription = "Next month",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 
@@ -264,13 +289,18 @@ fun DashboardScreen(
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     StatCard(
                         label = "Income",
                         amountMinor = uiState.incomeMinor,
                         containerColor = MaterialTheme.colorScheme.secondaryContainer,
                         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        shape = ExpressiveShapes.splitPairCardShape(isStart = true),
+                        badgeShape = ExpressiveShapes.Sunny,
+                        badgeContainerColor = MaterialTheme.colorScheme.secondary,
+                        badgeContentColor = MaterialTheme.colorScheme.onSecondary,
+                        badgeIcon = Icons.Rounded.NorthEast,
                         modifier = Modifier.weight(1f)
                     )
                     StatCard(
@@ -278,6 +308,11 @@ fun DashboardScreen(
                         amountMinor = uiState.expenseMinor,
                         containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                         contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                        shape = ExpressiveShapes.splitPairCardShape(isStart = false),
+                        badgeShape = ExpressiveShapes.Cookie9Sided,
+                        badgeContainerColor = MaterialTheme.colorScheme.tertiary,
+                        badgeContentColor = MaterialTheme.colorScheme.onTertiary,
+                        badgeIcon = Icons.Rounded.SouthWest,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -299,12 +334,29 @@ fun DashboardScreen(
 
             if (uiState.transactions.isEmpty()) {
                 item {
-                    Box(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 32.dp),
-                        contentAlignment = Alignment.Center
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .background(
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    shape = ExpressiveShapes.Cookie9Sided
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.ReceiptLong,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
                         Text(
                             text = "No transactions",
                             style = MaterialTheme.typography.bodyLarge,
@@ -332,15 +384,21 @@ fun DashboardScreen(
                     }
                 }
 
-                items(
-                    items = uiState.recentTransactions,
-                    key = { it.id }
-                ) { tx ->
-                    TransactionItemCard(
-                        tx = tx,
-                        dateFormatter = dateFormatter,
-                        onClick = { onTransactionClicked(tx) }
-                    )
+                item {
+                    val recent = uiState.recentTransactions
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        recent.forEachIndexed { index, tx ->
+                            TransactionItemCard(
+                                tx = tx,
+                                dateFormatter = dateFormatter,
+                                shape = ExpressiveShapes.segmentedItemShape(index, recent.size),
+                                onClick = { onTransactionClicked(tx) }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -387,15 +445,17 @@ fun DashboardScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(420.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    items(
+                    val totalCount = uiState.filteredTransactions.size
+                    itemsIndexed(
                         items = uiState.filteredTransactions,
-                        key = { it.id }
-                    ) { tx ->
+                        key = { _, tx -> tx.id }
+                    ) { index, tx ->
                         TransactionItemCard(
                             tx = tx,
                             dateFormatter = dateFormatter,
+                            shape = ExpressiveShapes.segmentedItemShape(index, totalCount),
                             onClick = { onTransactionClicked(tx) }
                         )
                     }
@@ -452,23 +512,41 @@ private fun HeroNetCard(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.onSurface,
         contentColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(28.dp)
+        shape = RoundedCornerShape(32.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 22.dp)
-        ) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .size(148.dp)
+                    .align(Alignment.TopEnd)
+                    .offset(x = 36.dp, y = (-28).dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.06f),
+                        shape = ExpressiveShapes.Sunny10
+                    )
+            )
+
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 22.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Net",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = prefixColor
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Net",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = prefixColor
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = netText,
+                        style = baseStyle,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
 
                 if (savingsRatePercent != null) {
                     val badgeBg = if (savingsRatePercent >= 0) {
@@ -481,26 +559,25 @@ private fun HeroNetCard(
                     } else {
                         MaterialTheme.colorScheme.onErrorContainer
                     }
+                    Spacer(modifier = Modifier.width(12.dp))
                     Surface(
                         color = badgeBg,
                         contentColor = badgeFg,
-                        shape = CircleShape
+                        shape = ExpressiveShapes.Sunny,
+                        modifier = Modifier.size(56.dp)
                     ) {
-                        Text(
-                            text = "$savingsRatePercent%",
-                            style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "$savingsRatePercent%",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = netText,
-                style = baseStyle,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
         }
     }
 }
@@ -511,22 +588,46 @@ private fun StatCard(
     amountMinor: Long,
     containerColor: Color,
     contentColor: Color,
+    shape: Shape,
+    badgeShape: Shape,
+    badgeContainerColor: Color,
+    badgeContentColor: Color,
+    badgeIcon: ImageVector,
     modifier: Modifier = Modifier
 ) {
     Surface(
         modifier = modifier,
         color = containerColor,
         contentColor = contentColor,
-        shape = RoundedCornerShape(20.dp)
+        shape = shape
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp)
         ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = contentColor.copy(alpha = 0.8f)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = contentColor.copy(alpha = 0.8f)
+                )
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(badgeContainerColor, badgeShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = badgeIcon,
+                        contentDescription = null,
+                        tint = badgeContentColor,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = AmountInputEngine.formatMinorCurrency(amountMinor),
@@ -584,11 +685,17 @@ private fun CategoryBreakdownCard(
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 items.forEachIndexed { index, item ->
                     val dotColor = palette[index % palette.size]
+                    val swatchShape = ExpressiveShapes.categorySwatchShape(index)
                     val isSelected = selectedCategory == item.category
+                    val rowCorner by animateDpAsState(
+                        targetValue = if (isSelected) 20.dp else 8.dp,
+                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                        label = "CategoryRowCorner"
+                    )
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(rowCorner))
                             .background(
                                 if (isSelected) {
                                     MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f)
@@ -602,8 +709,8 @@ private fun CategoryBreakdownCard(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(10.dp)
-                                .background(dotColor, CircleShape)
+                                .size(20.dp)
+                                .background(dotColor, swatchShape)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
@@ -693,7 +800,7 @@ private fun HistoryFilterBar(
         if (onSeeAllClicked != null) {
             Surface(
                 onClick = onSeeAllClicked,
-                shape = CircleShape,
+                shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 contentColor = MaterialTheme.colorScheme.onSurface
             ) {
@@ -736,11 +843,17 @@ private fun CategoryFilterChipsRow(
 private fun TransactionItemCard(
     tx: TransactionEntity,
     dateFormatter: DateTimeFormatter,
+    shape: Shape = RoundedCornerShape(20.dp),
     onClick: () -> Unit
 ) {
     val isExpense = tx.type == TransactionType.EXPENSE
     val prefix = if (isExpense) "-" else "+"
     val isSyncProblem = tx.syncStatus == SyncStatus.FAILED || tx.syncStatus == SyncStatus.CONFLICT
+    val badgeShape = when {
+        isSyncProblem -> ExpressiveShapes.SoftSquare
+        isExpense -> ExpressiveShapes.Cookie9Sided
+        else -> ExpressiveShapes.Sunny
+    }
     val badgeContainer = when {
         isSyncProblem -> MaterialTheme.colorScheme.errorContainer
         isExpense -> MaterialTheme.colorScheme.secondaryContainer
@@ -767,7 +880,7 @@ private fun TransactionItemCard(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
-        shape = RoundedCornerShape(20.dp)
+        shape = shape
     ) {
         Row(
             modifier = Modifier
@@ -777,8 +890,8 @@ private fun TransactionItemCard(
         ) {
             Box(
                 modifier = Modifier
-                    .size(42.dp)
-                    .background(badgeContainer, RoundedCornerShape(12.dp)),
+                    .size(44.dp)
+                    .background(badgeContainer, badgeShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
