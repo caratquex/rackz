@@ -213,44 +213,44 @@ fun HomeScreen(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surface)
-            .pointerInput(swipeThresholdPx) {
-                detectHorizontalDragGestures(
-                    onDragStart = {
-                        rawDragOffsetPx = 0f
-                        switchTriggeredInGesture = false
-                    },
-                    onDragEnd = {
-                        rawDragOffsetPx = 0f
-                        switchTriggeredInGesture = false
-                    },
-                    onDragCancel = {
-                        rawDragOffsetPx = 0f
-                        switchTriggeredInGesture = false
-                    },
-                    onHorizontalDrag = { change, dragAmount ->
-                        change.consume()
-                        rawDragOffsetPx += dragAmount
-                        if (!switchTriggeredInGesture &&
-                            kotlin.math.abs(rawDragOffsetPx) >= swipeThresholdPx
-                        ) {
-                            val nextType = if (currentType == TransactionType.EXPENSE) {
-                                TransactionType.INCOME
-                            } else {
-                                TransactionType.EXPENSE
-                            }
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            currentOnTypeSelected(nextType)
-                            switchTriggeredInGesture = true
-                            rawDragOffsetPx *= 0.25f
-                        }
-                    }
-                )
-            }
     ) {
         Surface(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .pointerInput(swipeThresholdPx) {
+                    detectHorizontalDragGestures(
+                        onDragStart = {
+                            rawDragOffsetPx = 0f
+                            switchTriggeredInGesture = false
+                        },
+                        onDragEnd = {
+                            rawDragOffsetPx = 0f
+                            switchTriggeredInGesture = false
+                        },
+                        onDragCancel = {
+                            rawDragOffsetPx = 0f
+                            switchTriggeredInGesture = false
+                        },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            rawDragOffsetPx += dragAmount
+                            if (!switchTriggeredInGesture &&
+                                kotlin.math.abs(rawDragOffsetPx) >= swipeThresholdPx
+                            ) {
+                                val nextType = if (currentType == TransactionType.EXPENSE) {
+                                    TransactionType.INCOME
+                                } else {
+                                    TransactionType.EXPENSE
+                                }
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                currentOnTypeSelected(nextType)
+                                switchTriggeredInGesture = true
+                                rawDragOffsetPx *= 0.25f
+                            }
+                        }
+                    )
+                },
             color = displaySurfaceColor,
             shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
         ) {
