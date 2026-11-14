@@ -378,11 +378,13 @@ class SheetsSyncEngine @Inject constructor(
         // Remove stale synced legacy rows that no longer exist in freshly scanned tabs.
         val activeRemoteIds = remoteById.keys
         refreshedLocal.forEach { local ->
+            val relevantMonth = SheetLedgerMapper.parseLegacyTabMonth(local.id)
+                ?: YearMonth.from(local.transactionDate)
             if (
                 local.id.startsWith("legacy-") &&
                 local.syncStatus == SyncStatus.SYNCED &&
                 !local.isDeleted &&
-                YearMonth.from(local.transactionDate) in tabSnapshots.keys &&
+                relevantMonth in tabSnapshots.keys &&
                 local.id !in activeRemoteIds
             ) {
                 dao.hardDeleteById(local.id)

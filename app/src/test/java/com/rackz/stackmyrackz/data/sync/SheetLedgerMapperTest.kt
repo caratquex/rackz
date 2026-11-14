@@ -57,6 +57,43 @@ class SheetLedgerMapperTest {
     }
 
     @Test
+    fun parseSheetDate_repairsUsLocaleSwappedSerialAndSlashDatesForTabMonth() {
+        val nov = YearMonth.of(2026, 11)
+        // Typing 1/11 in an en_US sheet stores serial 46033 (2026-01-11)
+        assertEquals(
+            LocalDate.of(2026, 11, 1),
+            SheetLedgerMapper.parseSheetDate("46033", nov, previousDate = null)
+        )
+        // Typing 10/11 in an en_US sheet stores serial 46306 (2026-10-11)
+        assertEquals(
+            LocalDate.of(2026, 11, 10),
+            SheetLedgerMapper.parseSheetDate("46306", nov, previousDate = null)
+        )
+        // Typing 12/11 in an en_US sheet stores serial 46367 (2026-12-11)
+        assertEquals(
+            LocalDate.of(2026, 11, 12),
+            SheetLedgerMapper.parseSheetDate("46367", nov, previousDate = null)
+        )
+        // Typing 12/10 in Oct 2026 stores serial 46366 (2026-12-10)
+        assertEquals(
+            LocalDate.of(2026, 10, 12),
+            SheetLedgerMapper.parseSheetDate("46366", YearMonth.of(2026, 10), previousDate = null)
+        )
+        assertEquals(
+            LocalDate.of(2026, 11, 14),
+            SheetLedgerMapper.parseSheetDate("11/14/2026", nov, previousDate = null)
+        )
+        assertEquals(
+            LocalDate.of(2026, 11, 14),
+            SheetLedgerMapper.parseSheetDate("11/14", nov, previousDate = null)
+        )
+        assertEquals(
+            YearMonth.of(2026, 11),
+            SheetLedgerMapper.parseLegacyTabMonth("legacy-2026-11-10-0123456789")
+        )
+    }
+
+    @Test
     fun parseAndFormatAmounts_useExactSenWithoutCurrencyConversion() {
         assertEquals(1850L, SheetLedgerMapper.parseAmountMinor("18.50"))
         assertEquals(123456L, SheetLedgerMapper.parseAmountMinor("$1,234.56"))

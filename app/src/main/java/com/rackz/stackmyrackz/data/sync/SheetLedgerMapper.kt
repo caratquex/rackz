@@ -53,6 +53,8 @@ object SheetLedgerMapper {
 
     private val FULL_SLASH_DATE_FORMATTER: DateTimeFormatter =
         DateTimeFormatter.ofPattern("d/M/yyyy", Locale.ENGLISH)
+    private val US_FULL_SLASH_DATE_FORMATTER: DateTimeFormatter =
+        DateTimeFormatter.ofPattern("M/d/yyyy", Locale.ENGLISH)
     private val SHORT_YEAR_SLASH_FORMATTER: DateTimeFormatter =
         DateTimeFormatterBuilder()
             .appendPattern("d/M/")
@@ -64,6 +66,7 @@ object SheetLedgerMapper {
     private val MONTH_PREFIX_REGEX =
         Regex("^([A-Za-z]+)\\s+(\\d{4})", RegexOption.IGNORE_CASE)
     private val DAY_MONTH_SLASH_REGEX = Regex("^(\\d{1,2})/(\\d{1,2})$")
+    private val LEGACY_ID_MONTH_REGEX = Regex("^legacy-(\\d{4}-\\d{2})-\\d+-")
 
     fun formatMonthTabName(month: YearMonth): String = month.format(MONTH_TAB_FORMATTER)
 
@@ -96,6 +99,11 @@ object SheetLedgerMapper {
         return YearMonth.of(year, parsedMonth)
     }
 
+    fun parseLegacyTabMonth(id: String): YearMonth? {
+        val match = LEGACY_ID_MONTH_REGEX.find(id) ?: return null
+        return runCatching { YearMonth.parse(match.groupValues[1]) }.getOrNull()
+    }
+
     fun parseSheetDate(
         raw: String,
         fallbackMonth: YearMonth,
@@ -110,25 +118,70 @@ object SheetLedgerMapper {
 
         val serialDouble = trimmed.toDoubleOrNull()
         if (serialDouble != null && serialDouble >= 20_000.0 && serialDouble <= 100_000.0) {
-            return SHEETS_SERIAL_EPOCH.plusDays(serialDouble.toLong())
+            return normalizeAmbiguousMonthDay(
+                candidate = SHEETS_SERIAL_EPOCH.plusDays(serialDouble.toLong()),
+                fallbackMonth = fallbackMonth
+            )
         }
 
         val dayMonthMatch = DAY_MONTH_SLASH_REGEX.matchEntire(trimmed)
         if (dayMonthMatch != null) {
-            val day = dayMonthMatch.groupValues[1].toIntOrNull()
-            val monthValue = dayMonthMatch.groupValues[2].toIntOrNull()
-            if (day != null && monthValue != null && monthValue in 1..12) {
-                val month = Month.of(monthValue)
-                val maxDay = month.length(fallbackMonth.isLeapYear)
-                return LocalDate.of(fallbackMonth.year, month, day.coerceIn(1, maxDay))
+            val first = dayMonthMatch.groupValues[1].toIntOrNull()
+            val second = dayMonthMatch.groupValues[2].toIntOrNull()
+            if (first != null && second != null) {
+                if (second in 1..12) {
+                    val month = Month.of(second)
+                    val maxDay = month.length(fallbackMonth.isLeapYear)
+                    val candidate = LocalDate.of(fallbackMonth.year, month, first.coerceIn(1, maxDay))
+                    return normalizeAmbiguousMonthDay(candidate, fallbackMonth)
+                }
+                if (first == fallbackMonth.monthValue) {
+                    val maxDay = fallbackMonth.lengthOfMonth()
+                    return fallbackMonth.atDay(second.coerceIn(1, maxDay))
+                }
             }
         }
 
-        runCatching { return LocalDate.parse(trimmed, FULL_SLASH_DATE_FORMATTER) }
-        runCatching { return LocalDate.parse(trimmed, SHORT_YEAR_SLASH_FORMATTER) }
+        runCatching {
+            return normalizeAmbiguousMonthDay(
+                LocalDate.parse(trimmed, FULL_SLASH_DATE_FORMATTER),
+                fallbackMonth
+            )
+        }
+        runCatching {
+            return normalizeAmbiguousMonthDay(
+                LocalDate.parse(trimmed, US_FULL_SLASH_DATE_FORMATTER),
+                fallbackMonth
+            )
+        }
+        runCatching {
+            return normalizeAmbiguousMonthDay(
+                LocalDate.parse(trimmed, SHORT_YEAR_SLASH_FORMATTER),
+                fallbackMonth
+            )
+        }
         runCatching { return LocalDate.parse(trimmed, TEXT_DATE_FORMATTER) }
 
         return previousDate ?: fallbackMonth.atDay(1)
+    }
+
+    /**
+     * Repairs dates typed as `d/M` in a US-locale Google Sheet (e.g. `1/11` in `Nov 2026` stored
+     * as `2026-01-11` serial) by swapping month and day when the parsed day equals the tab month.
+     */
+    private fun normalizeAmbiguousMonthDay(
+        candidate: LocalDate,
+        fallbackMonth: YearMonth
+    ): LocalDate {
+        if (
+            candidate.year == fallbackMonth.year &&
+            candidate.monthValue != fallbackMonth.monthValue &&
+            candidate.dayOfMonth == fallbackMonth.monthValue &&
+            candidate.monthValue <= fallbackMonth.lengthOfMonth()
+        ) {
+            return LocalDate.of(fallbackMonth.year, fallbackMonth.monthValue, candidate.monthValue)
+        }
+        return candidate
     }
 
     fun parseAmountMinor(raw: String): Long? {

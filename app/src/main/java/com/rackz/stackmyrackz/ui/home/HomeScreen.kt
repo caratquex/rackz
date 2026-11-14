@@ -2,12 +2,17 @@ package com.rackz.stackmyrackz.ui.home
 
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -48,9 +53,16 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -69,6 +81,7 @@ import com.rackz.stackmyrackz.ui.components.SyncStatusIconButton
 import com.rackz.stackmyrackz.ui.components.TransactionTypePill
 import com.rackz.stackmyrackz.ui.theme.RacksTheme
 import com.rackz.stackmyrackz.ui.theme.colorButton
+import com.rackz.stackmyrackz.ui.theme.combineColors
 import com.rackz.stackmyrackz.ui.theme.googleSansFlex
 import com.rackz.stackmyrackz.ui.theme.titleLargeCondensed
 import java.time.Instant
@@ -148,20 +161,97 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val view = LocalView.current
+    val density = LocalDensity.current
     val hasOperators = remember(uiState.amountInput.rawExpression) {
         uiState.amountInput.rawExpression.any { it in "+-×÷" }
     }
+
+    val swipeThresholdPx = remember(density) { with(density) { 56.dp.toPx() } }
+    val maxVisualDragPx = remember(density) { with(density) { 48.dp.toPx() } }
+    var rawDragOffsetPx by remember { mutableFloatStateOf(0f) }
+    var switchTriggeredInGesture by remember { mutableStateOf(false) }
+    val currentType by rememberUpdatedState(uiState.transactionType)
+    val currentOnTypeSelected by rememberUpdatedState(onTypeSelected)
+
+    val animatedAmountDragPx by animateFloatAsState(
+        targetValue = (rawDragOffsetPx * 0.38f).coerceIn(-maxVisualDragPx, maxVisualDragPx),
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "HomeAmountSwipeOffset"
+    )
+
+    val dragMagnitude = (kotlin.math.abs(rawDragOffsetPx) / swipeThresholdPx).coerceIn(0f, 0.35f)
+    val dragProgressOffset = when {
+        switchTriggeredInGesture -> 0f
+        uiState.transactionType == TransactionType.EXPENSE -> dragMagnitude
+        else -> -dragMagnitude
+    }
+
+    val displaySurfaceColor by animateColorAsState(
+        targetValue = if (uiState.transactionType == TransactionType.INCOME) {
+            combineColors(colorButton, MaterialTheme.colorScheme.primaryContainer, 0.28f)
+        } else {
+            colorButton
+        },
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "HomeDisplaySurfaceColor"
+    )
+
+    val prefixColor by animateColorAsState(
+        targetValue = if (uiState.transactionType == TransactionType.INCOME) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "HomePrefixColor"
+    )
 
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surface)
+            .pointerInput(swipeThresholdPx) {
+                detectHorizontalDragGestures(
+                    onDragStart = {
+                        rawDragOffsetPx = 0f
+                        switchTriggeredInGesture = false
+                    },
+                    onDragEnd = {
+                        rawDragOffsetPx = 0f
+                        switchTriggeredInGesture = false
+                    },
+                    onDragCancel = {
+                        rawDragOffsetPx = 0f
+                        switchTriggeredInGesture = false
+                    },
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        rawDragOffsetPx += dragAmount
+                        if (!switchTriggeredInGesture &&
+                            kotlin.math.abs(rawDragOffsetPx) >= swipeThresholdPx
+                        ) {
+                            val nextType = if (currentType == TransactionType.EXPENSE) {
+                                TransactionType.INCOME
+                            } else {
+                                TransactionType.EXPENSE
+                            }
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            currentOnTypeSelected(nextType)
+                            switchTriggeredInGesture = true
+                            rawDragOffsetPx *= 0.25f
+                        }
+                    }
+                )
+            }
     ) {
         Surface(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
-            color = colorButton,
+            color = displaySurfaceColor,
             shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
         ) {
             Column(
@@ -177,6 +267,7 @@ fun HomeScreen(
                 ) {
                     TransactionTypePill(
                         selectedType = uiState.transactionType,
+                        dragProgressOffset = dragProgressOffset,
                         onTypeSelected = { type ->
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                             onTypeSelected(type)
@@ -233,7 +324,14 @@ fun HomeScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 20.dp),
+                        .padding(horizontal = 24.dp, vertical = 20.dp)
+                        .graphicsLayer {
+                            translationX = animatedAmountDragPx
+                            val scale = 1f - (kotlin.math.abs(animatedAmountDragPx) / 1400f)
+                                .coerceIn(0f, 0.03f)
+                            scaleX = scale
+                            scaleY = scale
+                        },
                     horizontalAlignment = Alignment.End
                 ) {
                     val preview = uiState.amountInput.expressionPreview
@@ -262,7 +360,6 @@ fun HomeScreen(
                         numericPart.length <= 13 -> 44.sp
                         else -> 34.sp
                     }
-                    val prefixColor = MaterialTheme.colorScheme.onSurfaceVariant
                     val amountFont = remember { googleSansFlex(weight = 300, width = 95f, isRounded = true) }
 
                     val annotatedAmount = remember(numericPart, baseSize, prefixColor) {

@@ -273,6 +273,52 @@ class SheetsSyncEngineTest {
         assertFalse(remote.tabRows["Jan 2027"]!!.isEmpty())
         assertEquals("uuid-jan-1", remote.tabRows["Jan 2027"]!![0][6])
     }
+
+    @Test
+    fun syncAll_repairsUsLocaleNovDatesAndRemovesStaleMisdatedLegacyRows() = runTest {
+        val dao = FakeSyncDao()
+        val remote = FakeSheetsRemoteDataSource(
+            tabs = mutableListOf(SheetTabInfo(1940976508, "Nov 2026", 0)),
+            tabRows = mutableMapOf(
+                "Nov 2026" to mutableListOf(
+                    mutableListOf("46033", "Expense", "Groceries & Food", "", "9.80"),
+                    mutableListOf("", "Expense", "Transportation", "", "5.70"),
+                    mutableListOf("46306", "Expense", "Groceries & Food", "", "20.00")
+                )
+            )
+        )
+        val prefs = InMemorySyncPreferencesRepository(
+            SyncPreferencesState(spreadsheetId = "sheet-1", accountEmail = "user@gmail.com")
+        )
+        val engine = SheetsSyncEngine(dao, prefs, FakeAuthTokenProvider(), remote)
+
+        // Simulate stale legacy row imported prior to the date-normalization fix (in Jan 2026)
+        dao.insert(
+            TransactionEntity(
+                id = "legacy-2026-11-10-oldstaleid",
+                type = TransactionType.EXPENSE,
+                amountMinor = 980L,
+                category = "Groceries & Food",
+                remark = null,
+                transactionDate = LocalDate.of(2026, 1, 11),
+                createdAt = Instant.parse("2026-11-13T08:00:00Z"),
+                updatedAt = Instant.parse("2026-11-13T08:00:00Z"),
+                syncStatus = SyncStatus.SYNCED,
+                remoteRevision = "old-rev"
+            )
+        )
+
+        val outcome = engine.syncAll() as SyncOutcome.Success
+
+        assertEquals(3, outcome.importedCount)
+        assertNull(dao.getById("legacy-2026-11-10-oldstaleid"))
+
+        val all = dao.getAllTransactionsSnapshot().sortedBy { it.transactionDate }
+        assertEquals(3, all.size)
+        assertEquals(LocalDate.of(2026, 11, 1), all[0].transactionDate)
+        assertEquals(LocalDate.of(2026, 11, 1), all[1].transactionDate)
+        assertEquals(LocalDate.of(2026, 11, 10), all[2].transactionDate)
+    }
 }
 
 private class FakeAuthTokenProvider : AuthTokenProvider {
