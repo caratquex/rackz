@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -36,7 +37,15 @@ data class SyncPreferencesState(
     val lastSyncError: String? = null,
     val isSyncing: Boolean = false,
     val expenseCategories: List<String> = DefaultCategories.expenseCategories,
-    val incomeCategories: List<String> = DefaultCategories.incomeCategories
+    val incomeCategories: List<String> = DefaultCategories.incomeCategories,
+    val defaultSavingsTargetMinor: Long = 100_000L,
+    val defaultInvestmentTargetMinor: Long = 50_000L,
+    val wealthReminderEnabled: Boolean = false,
+    val wealthReminderFrequency: String = "MONTHLY",
+    val wealthReminderDayOfMonth: Int = 1,
+    val wealthReminderDayOfWeek: Int = 1,
+    val wealthReminderHour: Int = 20,
+    val wealthReminderMinute: Int = 0
 ) {
     fun categoriesFor(type: TransactionType): List<String> = when (type) {
         TransactionType.EXPENSE -> expenseCategories.ifEmpty { DefaultCategories.expenseCategories }
@@ -74,6 +83,20 @@ interface SyncPreferencesRepository {
         expenseCategories: List<String>,
         incomeCategories: List<String>
     )
+
+    suspend fun setDefaultWealthTargets(
+        savingsTargetMinor: Long,
+        investmentTargetMinor: Long
+    ) {}
+
+    suspend fun updateWealthReminderConfig(
+        enabled: Boolean,
+        frequency: String,
+        dayOfMonth: Int,
+        dayOfWeek: Int,
+        hour: Int,
+        minute: Int
+    ) {}
 }
 
 /** DataStore-backed implementation of [SyncPreferencesRepository]. */
@@ -91,6 +114,14 @@ class DataStoreSyncPreferencesRepository @Inject constructor(
         val IS_SYNCING = booleanPreferencesKey("is_syncing")
         val EXPENSE_CATEGORIES = stringPreferencesKey("expense_categories_json")
         val INCOME_CATEGORIES = stringPreferencesKey("income_categories_json")
+        val DEFAULT_SAVINGS_TARGET = longPreferencesKey("default_savings_target_minor")
+        val DEFAULT_INVESTMENT_TARGET = longPreferencesKey("default_investment_target_minor")
+        val WEALTH_REMINDER_ENABLED = booleanPreferencesKey("wealth_reminder_enabled")
+        val WEALTH_REMINDER_FREQUENCY = stringPreferencesKey("wealth_reminder_frequency")
+        val WEALTH_REMINDER_DAY_OF_MONTH = intPreferencesKey("wealth_reminder_day_of_month")
+        val WEALTH_REMINDER_DAY_OF_WEEK = intPreferencesKey("wealth_reminder_day_of_week")
+        val WEALTH_REMINDER_HOUR = intPreferencesKey("wealth_reminder_hour")
+        val WEALTH_REMINDER_MINUTE = intPreferencesKey("wealth_reminder_minute")
     }
 
     override val state: Flow<SyncPreferencesState> = context.syncPrefsDataStore.data.map { prefs ->
@@ -109,7 +140,20 @@ class DataStoreSyncPreferencesRepository @Inject constructor(
             incomeCategories = decodeStringList(
                 prefs[Keys.INCOME_CATEGORIES],
                 DefaultCategories.incomeCategories
-            )
+            ),
+            defaultSavingsTargetMinor = (prefs[Keys.DEFAULT_SAVINGS_TARGET] ?: 100_000L)
+                .coerceAtLeast(0L),
+            defaultInvestmentTargetMinor = (prefs[Keys.DEFAULT_INVESTMENT_TARGET] ?: 50_000L)
+                .coerceAtLeast(0L),
+            wealthReminderEnabled = prefs[Keys.WEALTH_REMINDER_ENABLED] ?: false,
+            wealthReminderFrequency = prefs[Keys.WEALTH_REMINDER_FREQUENCY]
+                ?.takeIf { it == "WEEKLY" || it == "MONTHLY" } ?: "MONTHLY",
+            wealthReminderDayOfMonth = (prefs[Keys.WEALTH_REMINDER_DAY_OF_MONTH] ?: 1)
+                .coerceIn(1, 28),
+            wealthReminderDayOfWeek = (prefs[Keys.WEALTH_REMINDER_DAY_OF_WEEK] ?: 1)
+                .coerceIn(1, 7),
+            wealthReminderHour = (prefs[Keys.WEALTH_REMINDER_HOUR] ?: 20).coerceIn(0, 23),
+            wealthReminderMinute = (prefs[Keys.WEALTH_REMINDER_MINUTE] ?: 0).coerceIn(0, 59)
         )
     }
 
@@ -181,6 +225,35 @@ class DataStoreSyncPreferencesRepository @Inject constructor(
         context.syncPrefsDataStore.edit { prefs ->
             prefs[Keys.EXPENSE_CATEGORIES] = encodeStringList(mergedExpense)
             prefs[Keys.INCOME_CATEGORIES] = encodeStringList(mergedIncome)
+        }
+    }
+
+    override suspend fun setDefaultWealthTargets(
+        savingsTargetMinor: Long,
+        investmentTargetMinor: Long
+    ) {
+        context.syncPrefsDataStore.edit { prefs ->
+            prefs[Keys.DEFAULT_SAVINGS_TARGET] = savingsTargetMinor.coerceAtLeast(0L)
+            prefs[Keys.DEFAULT_INVESTMENT_TARGET] = investmentTargetMinor.coerceAtLeast(0L)
+        }
+    }
+
+    override suspend fun updateWealthReminderConfig(
+        enabled: Boolean,
+        frequency: String,
+        dayOfMonth: Int,
+        dayOfWeek: Int,
+        hour: Int,
+        minute: Int
+    ) {
+        val cleanFreq = if (frequency == "WEEKLY") "WEEKLY" else "MONTHLY"
+        context.syncPrefsDataStore.edit { prefs ->
+            prefs[Keys.WEALTH_REMINDER_ENABLED] = enabled
+            prefs[Keys.WEALTH_REMINDER_FREQUENCY] = cleanFreq
+            prefs[Keys.WEALTH_REMINDER_DAY_OF_MONTH] = dayOfMonth.coerceIn(1, 28)
+            prefs[Keys.WEALTH_REMINDER_DAY_OF_WEEK] = dayOfWeek.coerceIn(1, 7)
+            prefs[Keys.WEALTH_REMINDER_HOUR] = hour.coerceIn(0, 23)
+            prefs[Keys.WEALTH_REMINDER_MINUTE] = minute.coerceIn(0, 59)
         }
     }
 
@@ -282,6 +355,39 @@ class InMemorySyncPreferencesRepository(
                 .filter { it.isNotEmpty() }
                 .distinct()
             current.copy(expenseCategories = exp, incomeCategories = inc)
+        }
+    }
+
+    override suspend fun setDefaultWealthTargets(
+        savingsTargetMinor: Long,
+        investmentTargetMinor: Long
+    ) {
+        _state.update {
+            it.copy(
+                defaultSavingsTargetMinor = savingsTargetMinor.coerceAtLeast(0L),
+                defaultInvestmentTargetMinor = investmentTargetMinor.coerceAtLeast(0L)
+            )
+        }
+    }
+
+    override suspend fun updateWealthReminderConfig(
+        enabled: Boolean,
+        frequency: String,
+        dayOfMonth: Int,
+        dayOfWeek: Int,
+        hour: Int,
+        minute: Int
+    ) {
+        val cleanFreq = if (frequency == "WEEKLY") "WEEKLY" else "MONTHLY"
+        _state.update {
+            it.copy(
+                wealthReminderEnabled = enabled,
+                wealthReminderFrequency = cleanFreq,
+                wealthReminderDayOfMonth = dayOfMonth.coerceIn(1, 28),
+                wealthReminderDayOfWeek = dayOfWeek.coerceIn(1, 7),
+                wealthReminderHour = hour.coerceIn(0, 23),
+                wealthReminderMinute = minute.coerceIn(0, 59)
+            )
         }
     }
 }

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.rackz.stackmyrackz.data.local.RacksDatabase
 import com.rackz.stackmyrackz.data.local.TransactionDao
+import com.rackz.stackmyrackz.data.local.WealthDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -25,12 +26,16 @@ object DatabaseModule {
             RacksDatabase::class.java,
             "racks.db"
         )
-            .addMigrations(RacksDatabase.MIGRATION_1_2)
+            .addMigrations(RacksDatabase.MIGRATION_1_2, RacksDatabase.MIGRATION_2_3)
             .build()
 
     @Provides
     fun provideTransactionDao(database: RacksDatabase): TransactionDao =
         database.transactionDao()
+
+    @Provides
+    fun provideWealthDao(database: RacksDatabase): WealthDao =
+        database.wealthDao()
 
     @Provides
     @Singleton

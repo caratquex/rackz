@@ -24,6 +24,7 @@ import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Dialpad
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Savings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -60,6 +61,7 @@ import com.rackz.stackmyrackz.ui.dashboard.DashboardRoute
 import com.rackz.stackmyrackz.ui.home.HomeRoute
 import com.rackz.stackmyrackz.ui.sync.SyncBottomSheetRoute
 import com.rackz.stackmyrackz.ui.theme.AppThemeMode
+import com.rackz.stackmyrackz.ui.wealth.WealthRoute
 import kotlinx.coroutines.launch
 
 private enum class RacksDestination(
@@ -76,6 +78,11 @@ private enum class RacksDestination(
         route = "dashboard",
         label = "Dashboard",
         icon = Icons.Rounded.BarChart
+    ),
+    WEALTH(
+        route = "wealth",
+        label = "Wealth",
+        icon = Icons.Rounded.Savings
     )
 }
 
@@ -83,9 +90,17 @@ private enum class RacksDestination(
 fun RacksApp(
     themeMode: AppThemeMode = AppThemeMode.SYSTEM,
     dynamicColor: Boolean = false,
+    initialDestination: String? = null,
     onThemeModeSelected: (AppThemeMode) -> Unit = {},
     onDynamicColorChanged: (Boolean) -> Unit = {}
 ) {
+    val startDestination = remember(initialDestination) {
+        when (initialDestination) {
+            RacksDestination.WEALTH.route -> RacksDestination.WEALTH.route
+            RacksDestination.DASHBOARD.route -> RacksDestination.DASHBOARD.route
+            else -> RacksDestination.HOME.route
+        }
+    }
     val navController = rememberNavController()
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -128,7 +143,7 @@ fun RacksApp(
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = RacksDestination.HOME.route,
+            startDestination = startDestination,
             enterTransition = { fadeIn(tween(180)) },
             exitTransition = { fadeOut(tween(180)) },
             modifier = Modifier.padding(innerPadding)
@@ -164,6 +179,18 @@ fun RacksApp(
                             if (result == SnackbarResult.ActionPerformed) {
                                 onAction?.invoke()
                             }
+                        }
+                    }
+                )
+            }
+            composable(RacksDestination.WEALTH.route) {
+                WealthRoute(
+                    onOpenSync = { isSyncOpen = true },
+                    onOpenAppearance = { isAppearanceOpen = true },
+                    onShowSnackbar = { message ->
+                        coroutineScope.launch {
+                            snackbarHostState.currentSnackbarData?.dismiss()
+                            snackbarHostState.showSnackbar(message)
                         }
                     }
                 )

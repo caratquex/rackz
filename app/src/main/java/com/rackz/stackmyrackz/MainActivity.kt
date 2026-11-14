@@ -26,6 +26,7 @@ class MainActivity : ComponentActivity() {
             ?.let { name -> AppThemeMode.entries.firstOrNull { it.name == name } }
             ?: AppThemeMode.SYSTEM
         val initialDynamicColor = prefs.getBoolean(KEY_DYNAMIC_COLOR, false)
+        val initialDestination = intent?.getStringExtra("open_destination")
 
         setContent {
             var themeMode by remember { mutableStateOf(initialThemeMode) }
@@ -38,6 +39,7 @@ class MainActivity : ComponentActivity() {
                 RacksApp(
                     themeMode = themeMode,
                     dynamicColor = dynamicColor,
+                    initialDestination = initialDestination,
                     onThemeModeSelected = { selected ->
                         themeMode = selected
                         prefs.edit { putString(KEY_THEME_MODE, selected.name) }

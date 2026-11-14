@@ -3,17 +3,23 @@ package com.rackz.stackmyrackz.data.sync
 import android.content.Intent
 import com.rackz.stackmyrackz.data.local.TransactionDao
 import com.rackz.stackmyrackz.data.local.TransactionEntity
+import com.rackz.stackmyrackz.data.local.WealthDao
+import com.rackz.stackmyrackz.data.local.WealthEntryEntity
 import com.rackz.stackmyrackz.data.preferences.SyncPreferencesRepository
 import com.rackz.stackmyrackz.data.remote.AuthTokenProvider
 import com.rackz.stackmyrackz.data.remote.SheetTabInfo
 import com.rackz.stackmyrackz.data.remote.SheetsApiException
 import com.rackz.stackmyrackz.data.remote.SheetsRemoteDataSource
+import com.rackz.stackmyrackz.data.remote.SpreadsheetMetadata
 import com.rackz.stackmyrackz.data.remote.TokenResult
 import com.rackz.stackmyrackz.model.SyncStatus
 import com.rackz.stackmyrackz.model.TransactionType
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.Instant
+import java.time.LocalDate
 import java.time.YearMonth
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -56,8 +62,22 @@ class SheetsSyncEngine @Inject constructor(
     private val dao: TransactionDao,
     private val syncPreferences: SyncPreferencesRepository,
     private val authTokenProvider: AuthTokenProvider,
-    private val remoteDataSource: SheetsRemoteDataSource
+    private val remoteDataSource: SheetsRemoteDataSource,
+    private val wealthDao: WealthDao? = null
 ) {
+
+    constructor(
+        dao: TransactionDao,
+        syncPreferences: SyncPreferencesRepository,
+        authTokenProvider: AuthTokenProvider,
+        remoteDataSource: SheetsRemoteDataSource
+    ) : this(
+        dao = dao,
+        syncPreferences = syncPreferences,
+        authTokenProvider = authTokenProvider,
+        remoteDataSource = remoteDataSource,
+        wealthDao = null
+    )
 
     private val syncMutex = Mutex()
 
@@ -412,6 +432,16 @@ class SheetsSyncEngine @Inject constructor(
             )
         }
 
+        // 4. Reconcile monthly Wealth snapshots with the dedicated "Wealth" tab.
+        val (wealthUploaded, wealthImported) = reconcileWealthTab(
+            spreadsheetId = spreadsheetId,
+            accessToken = accessToken,
+            metadata = metadata,
+            now = now
+        )
+        uploadedCount += wealthUploaded
+        importedCount += wealthImported
+
         syncPreferences.recordSyncSuccess(System.currentTimeMillis())
         return SyncOutcome.Success(
             uploadedCount = uploadedCount,
@@ -421,6 +451,169 @@ class SheetsSyncEngine @Inject constructor(
         )
     }
 
+    private suspend fun reconcileWealthTab(
+        spreadsheetId: String,
+        accessToken: String,
+        metadata: SpreadsheetMetadata,
+        now: Instant
+    ): Pair<Int, Int> {
+        val dao = wealthDao ?: return 0 to 0
+        val localEntries = dao.getAllEntriesSnapshot()
+        val hasWealthTab = metadata.sheets.any { it.title.equals(WEALTH_TAB_TITLE, ignoreCase = true) }
+        if (!hasWealthTab && localEntries.isEmpty()) {
+            return 0 to 0
+        }
+        if (!hasWealthTab) {
+            remoteDataSource.ensureWealthTabExists(spreadsheetId, accessToken)
+        }
+
+        val remoteRawRows = remoteDataSource.getWealthRows(spreadsheetId, accessToken)
+        val remoteByMonth = linkedMapOf<String, WealthEntryEntity>()
+        remoteRawRows.forEach { row ->
+            parseWealthSheetRow(row, now)?.let { parsed ->
+                remoteByMonth[parsed.yearMonth] = parsed
+            }
+        }
+
+        val localByMonth = localEntries.associateBy { it.yearMonth }
+        val allMonths = (localByMonth.keys + remoteByMonth.keys).toSortedSet()
+        if (allMonths.isEmpty()) return 0 to 0
+
+        var imported = 0
+        var needUpload = false
+        val mergedList = mutableListOf<WealthEntryEntity>()
+
+        allMonths.forEach { monthKey ->
+            val local = localByMonth[monthKey]
+            val remote = remoteByMonth[monthKey]
+            when {
+                local == null && remote != null -> {
+                    val synced = remote.copy(syncStatus = SyncStatus.SYNCED)
+                    dao.upsert(synced)
+                    mergedList.add(synced)
+                    imported++
+                }
+                local != null && remote == null -> {
+                    mergedList.add(local)
+                    needUpload = true
+                }
+                local != null && remote != null -> {
+                    val remoteNewer = remote.updatedAt.isAfter(local.updatedAt)
+                    val sameData =
+                        local.savingsSavedMinor == remote.savingsSavedMinor &&
+                            local.savingsTargetMinor == remote.savingsTargetMinor &&
+                            local.investmentSavedMinor == remote.investmentSavedMinor &&
+                            local.investmentTargetMinor == remote.investmentTargetMinor &&
+                            local.note == remote.note
+
+                    if (remoteNewer || (local.syncStatus == SyncStatus.SYNCED && !sameData)) {
+                        val synced = remote.copy(syncStatus = SyncStatus.SYNCED)
+                        if (!sameData || local.syncStatus != SyncStatus.SYNCED) {
+                            dao.upsert(synced)
+                            imported++
+                        }
+                        mergedList.add(synced)
+                    } else {
+                        mergedList.add(local)
+                        if (!sameData || local.syncStatus.needsUpload()) {
+                            needUpload = true
+                        }
+                    }
+                }
+            }
+        }
+
+        val sortedMerged = mergedList.sortedBy { it.yearMonth }
+        var uploaded = 0
+        if (needUpload) {
+            val serializedRows = sortedMerged.map { entry ->
+                listOf(
+                    "'${entry.yearMonth}",
+                    SheetLedgerMapper.formatMajorAmount(entry.savingsSavedMinor),
+                    SheetLedgerMapper.formatMajorAmount(entry.savingsTargetMinor),
+                    SheetLedgerMapper.formatMajorAmount(entry.investmentSavedMinor),
+                    SheetLedgerMapper.formatMajorAmount(entry.investmentTargetMinor),
+                    entry.note.orEmpty(),
+                    "'${entry.updatedAt}"
+                )
+            }
+            remoteDataSource.updateWealthRows(spreadsheetId, serializedRows, accessToken)
+            sortedMerged.forEach { entry ->
+                if (entry.syncStatus != SyncStatus.SYNCED) {
+                    dao.upsert(entry.copy(syncStatus = SyncStatus.SYNCED))
+                    uploaded++
+                }
+            }
+        } else {
+            sortedMerged.forEach { entry ->
+                if (entry.syncStatus != SyncStatus.SYNCED) {
+                    dao.upsert(entry.copy(syncStatus = SyncStatus.SYNCED))
+                }
+            }
+        }
+
+        return uploaded to imported
+    }
+
+    private fun parseWealthSheetRow(
+        row: List<String>,
+        fallbackTimestamp: Instant
+    ): WealthEntryEntity? {
+        val yearMonth = parseWealthYearMonth(row.getOrElse(0) { "" }) ?: return null
+        val savingsSaved = parseWealthAmountMinor(row.getOrElse(1) { "" }) ?: 0L
+        val savingsTarget = parseWealthAmountMinor(row.getOrElse(2) { "" }) ?: 100_000L
+        val investmentSaved = parseWealthAmountMinor(row.getOrElse(3) { "" }) ?: 0L
+        val investmentTarget = parseWealthAmountMinor(row.getOrElse(4) { "" }) ?: 50_000L
+        val note = row.getOrElse(5) { "" }.trim().takeIf { it.isNotEmpty() }
+        val updatedAt = row.getOrElse(6) { "" }.trim()
+            .takeIf { it.isNotEmpty() }
+            ?.let { raw -> runCatching { Instant.parse(raw) }.getOrNull() }
+            ?: fallbackTimestamp
+
+        return WealthEntryEntity(
+            yearMonth = yearMonth.toString(),
+            savingsSavedMinor = savingsSaved,
+            savingsTargetMinor = savingsTarget,
+            investmentSavedMinor = investmentSaved,
+            investmentTargetMinor = investmentTarget,
+            note = note,
+            updatedAt = updatedAt,
+            syncStatus = SyncStatus.SYNCED
+        )
+    }
+
+    private fun parseWealthYearMonth(raw: String): YearMonth? {
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty()) return null
+        runCatching { return YearMonth.parse(trimmed) }
+        SheetLedgerMapper.parseMonthFromTabTitle(trimmed)?.let { return it }
+        val serial = trimmed.toDoubleOrNull()
+        if (serial != null && serial >= 20_000.0 && serial <= 100_000.0) {
+            val epoch = LocalDate.of(1899, 12, 30)
+            return YearMonth.from(epoch.plusDays(serial.toLong()))
+        }
+        return null
+    }
+
+    private fun parseWealthAmountMinor(raw: String): Long? {
+        val cleaned = raw
+            .replace("RM", "", ignoreCase = true)
+            .replace("MYR", "", ignoreCase = true)
+            .replace("$", "")
+            .replace(",", "")
+            .trim()
+        if (cleaned.isEmpty()) return null
+        val decimal = runCatching { BigDecimal(cleaned) }.getOrNull() ?: return null
+        if (decimal < BigDecimal.ZERO) return null
+        return decimal.movePointRight(2)
+            .setScale(0, RoundingMode.HALF_UP)
+            .toLong()
+    }
+
     private fun SyncStatus.needsUpload(): Boolean =
         this == SyncStatus.PENDING || this == SyncStatus.FAILED || this == SyncStatus.SYNCING
+
+    private companion object {
+        const val WEALTH_TAB_TITLE = "Wealth"
+    }
 }

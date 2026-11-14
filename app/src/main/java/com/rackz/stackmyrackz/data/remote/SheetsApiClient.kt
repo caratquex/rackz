@@ -69,6 +69,22 @@ interface SheetsRemoteDataSource {
         newTabTitle: String,
         accessToken: String
     )
+
+    suspend fun ensureWealthTabExists(
+        spreadsheetId: String,
+        accessToken: String
+    ) {}
+
+    suspend fun getWealthRows(
+        spreadsheetId: String,
+        accessToken: String
+    ): List<List<String>> = emptyList()
+
+    suspend fun updateWealthRows(
+        spreadsheetId: String,
+        rows: List<List<String>>,
+        accessToken: String
+    ) {}
 }
 
 /** OkHttp-backed implementation of [SheetsRemoteDataSource] using Google Sheets REST API v4. */
@@ -226,6 +242,128 @@ class OkHttpSheetsApiClient @Inject constructor(
         clearRange(spreadsheetId, clearTargetRange, accessToken)
     }
 
+    override suspend fun ensureWealthTabExists(
+        spreadsheetId: String,
+        accessToken: String
+    ) {
+        val metadata = getSpreadsheetMetadata(spreadsheetId, accessToken)
+        val hasWealthTab = metadata.sheets.any { it.title.equals(WEALTH_TAB_TITLE, ignoreCase = true) }
+        if (!hasWealthTab) {
+            val url = "$BASE_URL/${encodePathSegment(spreadsheetId)}:batchUpdate"
+            val addSheetRequest = JSONObject().apply {
+                put(
+                    "addSheet",
+                    JSONObject().apply {
+                        put(
+                            "properties",
+                            JSONObject().apply {
+                                put("title", WEALTH_TAB_TITLE)
+                            }
+                        )
+                    }
+                )
+            }
+            val payload = JSONObject().apply {
+                put("requests", JSONArray().put(addSheetRequest))
+            }
+            executeJsonRequest(
+                Request.Builder()
+                    .url(url)
+                    .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                    .header("Authorization", "Bearer $accessToken")
+                    .build()
+            )
+            writeRangeValues(
+                spreadsheetId = spreadsheetId,
+                range = "'$WEALTH_TAB_TITLE'!A1:G1",
+                rows = listOf(WEALTH_HEADERS),
+                accessToken = accessToken
+            )
+        }
+    }
+
+    override suspend fun getWealthRows(
+        spreadsheetId: String,
+        accessToken: String
+    ): List<List<String>> {
+        val range = "'$WEALTH_TAB_TITLE'!A2:G200"
+        val url =
+            "$BASE_URL/${encodePathSegment(spreadsheetId)}/values/${encodePathSegment(range)}?valueRenderOption=UNFORMATTED_VALUE"
+        val json = executeJsonRequest(
+            Request.Builder()
+                .url(url)
+                .get()
+                .header("Authorization", "Bearer $accessToken")
+                .build()
+        )
+        val values = json.optJSONArray("values") ?: return emptyList()
+        return buildList(values.length()) {
+            for (r in 0 until values.length()) {
+                val rowArray = values.optJSONArray(r) ?: JSONArray()
+                val cells = buildList(rowArray.length()) {
+                    for (c in 0 until rowArray.length()) {
+                        val raw = rowArray.opt(c)
+                        add(
+                            if (raw == null || raw == JSONObject.NULL) {
+                                ""
+                            } else {
+                                raw.toString()
+                            }
+                        )
+                    }
+                }
+                add(cells)
+            }
+        }
+    }
+
+    override suspend fun updateWealthRows(
+        spreadsheetId: String,
+        rows: List<List<String>>,
+        accessToken: String
+    ) {
+        clearRange(spreadsheetId, "'$WEALTH_TAB_TITLE'!A2:G200", accessToken)
+        val allRows = buildList(rows.size + 1) {
+            add(WEALTH_HEADERS)
+            addAll(rows)
+        }
+        val endRow = allRows.size.coerceAtLeast(1)
+        writeRangeValues(
+            spreadsheetId = spreadsheetId,
+            range = "'$WEALTH_TAB_TITLE'!A1:G$endRow",
+            rows = allRows,
+            accessToken = accessToken
+        )
+    }
+
+    private suspend fun writeRangeValues(
+        spreadsheetId: String,
+        range: String,
+        rows: List<List<String>>,
+        accessToken: String
+    ) {
+        val url =
+            "$BASE_URL/${encodePathSegment(spreadsheetId)}/values/${encodePathSegment(range)}?valueInputOption=USER_ENTERED"
+        val outerArray = JSONArray()
+        rows.forEach { row ->
+            val innerArray = JSONArray()
+            row.forEach { innerArray.put(it) }
+            outerArray.put(innerArray)
+        }
+        val payload = JSONObject().apply {
+            put("range", range)
+            put("majorDimension", "ROWS")
+            put("values", outerArray)
+        }
+        executeJsonRequest(
+            Request.Builder()
+                .url(url)
+                .put(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .header("Authorization", "Bearer $accessToken")
+                .build()
+        )
+    }
+
     private suspend fun clearRange(
         spreadsheetId: String,
         range: String,
@@ -290,6 +428,16 @@ class OkHttpSheetsApiClient @Inject constructor(
 
     private companion object {
         const val BASE_URL = "https://sheets.googleapis.com/v4/spreadsheets"
+        const val WEALTH_TAB_TITLE = "Wealth"
+        val WEALTH_HEADERS = listOf(
+            "Month",
+            "Savings (RM)",
+            "Savings Target (RM)",
+            "Investment (RM)",
+            "Investment Target (RM)",
+            "Note",
+            "UpdatedAt"
+        )
         val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
     }
 }
